@@ -1,0 +1,68 @@
+# This workflow performs hygiene checks using `clang-tidy` and `clang-format` on push and pull requests.
+
+name: hygiene check
+on: [push, pull_request]
+
+permissions:
+  contents: read # Default everything to read-only
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  clang-tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update && sudo apt install -y clang-tidy cmake ninja-build jq
+
+      - name: Generate compilation database
+        run: |
+          BUILD_DIR=build
+          cmake -S . -B "$BUILD_DIR" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -G Ninja
+          [ -f "$BUILD_DIR/compile_commands.json" ] || { echo "Error: compile_commands.json not generated."; exit 1; }
+
+          ln -svf "$BUILD_DIR/compile_commands.json" .
+
+      - name: Run clang-tidy
+        run: |
+          BUILD_DIR=build
+          mapfile -t SRC_FILES < <(jq -r '.[].file' "$BUILD_DIR/compile_commands.json" | sort -u)
+          mapfile -t HEADER_FILES < <(find . -type f \( -name "*.h" -o -name "*.hpp" \) | sort -u)
+          FILES=("${SRC_FILES[@]}" "${HEADER_FILES[@]}")
+          [ ${#FILES[@]} -gt 0 ] || { echo "Error: No files found for clang-tidy."; exit 1; }
+
+          echo "Analyzing files..."
+          clang-tidy --use-color --warnings-as-errors=* "${FILES[@]}"
+
+  clang-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update && sudo apt install -y clang-format cmake ninja-build jq
+
+      - name: Generate compilation database
+        run: |
+          BUILD_DIR=build
+          cmake -S . -B "$BUILD_DIR" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -G Ninja
+          [ -f "$BUILD_DIR/compile_commands.json" ] || { echo "Error: compile_commands.json not generated."; exit 1; }
+
+      - name: Run clang-format
+        run: |
+          BUILD_DIR=build
+          mapfile -t SRC_FILES < <(jq -r '.[].file' "$BUILD_DIR/compile_commands.json" | sort -u)
+          mapfile -t HEADER_FILES < <(find . -type f \( -name "*.h" -o -name "*.hpp" \) | sort -u)
+          FILES=("${SRC_FILES[@]}" "${HEADER_FILES[@]}")
+          [ ${#FILES[@]} -gt 0 ] || { echo "Error: No files found for clang-format."; exit 1; }
+
+          echo "Checking formatting..."
+          clang-format --dry-run --Werror --fcolor-diagnostics -style=file "${FILES[@]}"

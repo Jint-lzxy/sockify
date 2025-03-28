@@ -1,0 +1,58 @@
+# This workflow builds and tests the project on multiple platforms (Ubuntu, macOS, Windows).
+# It consists of two jobs: `build` to compile the project and upload build artifacts, and `test` to download
+# the artifacts and run the tests. The build artifacts are uploaded only if the build succeeds, and the test job
+# runs only after a successful build. The matrix strategy runs both jobs in parallel for faster feedback.
+
+name: build and test project (multi)
+on: [push, pull_request]
+
+permissions:
+  contents: read # Default everything to read-only
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup cmake and build
+        id: cmake_build
+        uses: threeal/cmake-action@v2
+        with:
+          source-dir: .
+          build-dir: ${{ matrix.os }}-${{ runner.arch }}
+          run-build: true
+          options: |
+            SOCKIFY_BUILD_TESTS=ON
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}-${{ runner.arch }}
+          path: ${{ steps.cmake_build.outputs.build-dir }}
+          if-no-files-found: error
+          include-hidden-files: true
+
+  test:
+    runs-on: ${{ matrix.os }}
+    needs: [ build ]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ matrix.os }}-${{ runner.arch }}
+
+      - name: Run tests
+        run: |
+          ctest --output-on-failure

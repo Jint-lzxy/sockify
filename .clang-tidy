@@ -1,0 +1,95 @@
+FormatStyle: LLVM
+HeaderFilterRegex: '.*\.(c|cxx|cpp)$'
+
+Checks: >-
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+
+  clang-analyzer-*,
+
+  concurrency-*,
+  -concurrency-mt-unsafe,
+
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-do-while,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-type-const-cast,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-vararg,
+
+  llvm-*,
+
+  misc-*,
+  -misc-no-recursion,
+  -misc-use-anonymous-namespace,
+
+  modernize-*,
+  -modernize-avoid-bind,
+  -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
+  -modernize-use-trailing-return-type,
+
+  performance-*,
+
+  portability-*,
+
+  readability-*,
+  -readability-braces-around-statements,
+  -readability-magic-numbers,
+  -readability-redundant-access-specifiers,
+
+CheckOptions:
+  ## readability-identifier-naming
+  - key:             readability-identifier-naming.ClassCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.EnumCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.UnionCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.FunctionCase
+    value:           lower_case
+  - key:             readability-identifier-naming.VariableCase
+    value:           lower_case
+  - key:             readability-identifier-naming.MemberCase
+    value:           lower_case
+  - key:             readability-identifier-naming.ParameterCase
+    value:           lower_case
+  - key:             readability-identifier-naming.TemplateParameterCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.TemplateParameterIgnoredRegexp
+    value:           '(.*\:auto|expr-type)' # This is https://llvm.org/PR56464
+  - key:             readability-identifier-naming.alueTemplateParameterCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.IgnoreMainLikeFunctions
+    value:           1
+  ## readability-function-cognitive-complexity
+  - key:             readability-function-cognitive-complexity.Threshold
+    value:           145
+  ## readability-function-size
+  - key:             readability-function-size.LineThreshold
+    value:           195
+  ## readability-redundant-member-init
+  - key:             readability-redundant-member-init.IgnoreBaseInCopyConstructors
+    value:           1
+  ## misc-non-private-member-variables-in-classes
+  - key:             misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
+    value:           1
+  ## readability-identifier-length
+  - key:             readability-identifier-length.MinimumLoopCounterNameLength
+    value:           1
+  - key:             readability-identifier-length.MinimumVariableNameLength
+    value:           2
+  - key:             readability-identifier-length.MinimumParameterNameLength
+    value:           2
+  ## cppcoreguidelines-special-member-functions
+  - key:             cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+    value:           1
+  - key:             cppcoreguidelines-special-member-functions.AllowMissingMoveFunctionsWhenCopyIsDeleted
+    value:           1
+  - key:             cppcoreguidelines-special-member-functions.AllowImplicitlyDeletedCopyOrMove
+    value:           0

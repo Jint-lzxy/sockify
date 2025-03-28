@@ -1,0 +1,66 @@
+# General prerequisites and system-related files
+*.d
+*.pbxuser
+*.mode1v3
+*.ncb
+*.suo
+.DS_Store
+
+# Build and output directories
+Debug/
+Release/
+DerivedData/
+build/
+build-fuzzers/
+benchmark-dir/
+debug/
+debug-build/
+
+# CMake-specific files and directories
+cmake-build-*
+**/CMakeUserPresets.json
+
+# IDE and project-specific files
+.idea/
+.vs/
+.vscode/
+xcuserdata/
+*.user
+*.xcuserstate
+*.xccheckout
+*.xcbkptlist
+UpgradeLog.XML
+
+# Documentation files (Doxygen and friends)
+*.cache
+/docs/doxygen
+
+# Compiled object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled headers
+*.gch
+*.pch
+
+# Compiled dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executable files
+*.exe
+*.out
+*.app
+
+# Temporary and generated files
+*.pyc
+compile_commands.json
