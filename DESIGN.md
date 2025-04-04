@@ -128,15 +128,11 @@ Address(const_pointer addr) noexcept;
 ```
 
 - **Effects:**
-
   - Constructs an `Address` object by copying the data from the memory pointed to by `addr` into the internal `address` member. The constructor then deduces the port number and protocol from the contents of the raw address structure.
   - Specifically, if `addr->ss_family` is `AF_INET`, the constructor extracts the port from the corresponding `sockaddr_in` structure and sets the protocol to `Protocol::IPv4`; if `addr->ss_family` is `AF_INET6`, it extracts the port from the corresponding `sockaddr_in6` structure and sets the protocol to `Protocol::IPv6`.
-
 - **Preconditions:**
-
   - `addr` shall not be a null pointer.
   - `addr` must point to a valid socket address (either IPv4 or IPv6).
-
 - **Complexity:** Constant.
 
 3. **Constructor (from string representation and port number)**
@@ -146,19 +142,13 @@ Address(std::string_view addr_str, uint16_t port);
 ```
 
 - **Effects:**
-
   - Parses `addr_str` (e.g., `"127.0.0.1"` or `"::1"`) to initialize `address` and deduce `protocol`; caches the given port in `port`.
   - If the string cannot be parsed into a valid address, an exception is thrown (see _Exceptions_).
-
 - **Preconditions:**
-
   - `addr_str` must not be empty.
-
 - **Exceptions:**
-
   - `std::invalid_argument`: Thrown if the string cannot be parsed into a valid IP address.
   - `std::out_of_range`: Thrown if the port number is outside the valid range for a port (0–65535).
-
 - **Complexity:** Linear in the length of `addr_str`.
 
 4. **Constructor (from string representation)**
@@ -168,22 +158,16 @@ explicit Address(std::string_view str);
 ```
 
 - **Effects:**
-
   - Constructs an `Address` object from the provided string `str`. This string must represent the address in the exact format returned by the `to_string()` member function, which is:
     - For IPv4 addresses: `"ip:port"` (e.g., `"192.168.0.1:8080"`).
     - For IPv6 addresses: `"[ip]:port"` (e.g., `"[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:8080"`).
   - The constructor will parse the string, extract the IP address and port, and initialize the internal `sockaddr_storage` object accordingly.
   - If the string cannot be parsed or doesn't match the expected format, an exception is thrown (see _Exceptions_).
-
 - **Preconditions:**
-
   - `str` must not be empty.
-
 - **Exceptions:**
-
   - `std::invalid_argument`: Thrown if the string cannot be parsed as a valid IP address in the correct format, or if the port number contains non-numeric characters (e.g., letters or special symbols).
   - `std::out_of_range`: Thrown if the parsed port number is outside the valid range (0–65535).
-
 - **Complexity:** Linear in the length of `str`.
 
 5. **Copy Constructor**
@@ -193,9 +177,7 @@ Address(const Address& other) noexcept;
 ```
 
 - **Effects:**
-
   - Constructs an `Address` as a copy of other, copying `address`, `port`, and `protocol`.
-
 - **Complexity:** Constant.
 
 6. **Move Constructor**
@@ -205,10 +187,8 @@ Address(Address&& other) noexcept;
 ```
 
 - **Effects:**
-
   - Constructs an `Address` by moving the members of `other`.
   - After the move `other` will be in a valid but unspecified state.
-
 - **Complexity:** Constant.
 
 7. **Copy Assignment Operator**
@@ -218,9 +198,7 @@ Address& operator=(const Address& other) noexcept;
 ```
 
 - **Effects:**
-
   - Copies `other` into `this`, updating `address`, `port` and `protocol`.
-
 - **Complexity:** Constant.
 
 8. **Move Assignment Operator**
@@ -230,10 +208,8 @@ Address& operator=(Address&& other) noexcept;
 ```
 
 - **Effects:**
-
   - Moves the members of `other` into `this`.
   - After the move `other` will be in a valid but unspecified state.
-
 - **Complexity:** Constant.
 
 9. **Destructor**
@@ -254,9 +230,7 @@ const_pointer get() const noexcept;
 ```
 
 - **Returns:**
-
   - A pointer to the raw network address obtained via `std::addressof(address)`.
-
 - **Complexity:** Constant.
 
 ```cpp
@@ -264,9 +238,7 @@ string_type ip() const;
 ```
 
 - **Returns:**
-
   - A string representing the IP address (e.g., `"127.0.0.1"` or `"::1"`), derived from the raw `address`.
-
 - **Complexity:** Implementation-specific.
 
 ```cpp
@@ -274,9 +246,7 @@ uint16_t port() const noexcept;
 ```
 
 - **Returns:**
-
   - The cached port number.
-
 - **Complexity:** Constant.
 
 ```cpp
@@ -284,9 +254,7 @@ Protocol protocol() const noexcept;
 ```
 
 - **Returns:**
-
   - The cached protocol (either `Protocol::IPv4` or `Protocol::IPv6`).
-
 - **Complexity:** Constant.
 
 ```cpp
@@ -294,9 +262,7 @@ string_type to_string() const;
 ```
 
 - **Returns:**
-
   - A string representation of the address in the format `"ip:port"`. For IPv6 addresses, the IP is enclosed in square brackets (e.g., `"[::1]:80"`).
-
 - **Complexity:** Implementation-specific.
 
 11. **Comparison Operators**
@@ -306,9 +272,7 @@ bool operator==(const Address& other) const noexcept;
 ```
 
 - **Returns:**
-
   - `true` if the raw address data, cached port, and cached protocol are identical; otherwise, `false`.
-
 - **Complexity:** Constant.
 
 ```cpp
@@ -316,9 +280,7 @@ bool operator!=(const Address& other) const noexcept;
 ```
 
 - **Returns:**
-
   - `!(*this == other)`.
-
 - **Complexity:** Constant.
 
 ```cpp
@@ -329,9 +291,7 @@ friend bool operator>=(const Address& lhs, const Address& rhs);
 ```
 
 - **Effects:**
-
   - Performs a lexicographical comparison of `lhs.to_string()` and `rhs.to_string()` as if by `std::lexicographical_compare`.
-
 - **Returns:**
 
   - `true` or `false` depending on the result of the string comparison.
@@ -345,9 +305,7 @@ friend std::ostream& operator<<(std::ostream& strm, const Address& addr);
 ```
 
 - **Effects:**
-
   - Inserts the result of `addr.to_string()` into the output stream `strm`.
-
 - **Returns:**
 
   - A reference to `strm`.
@@ -360,9 +318,7 @@ friend void swap(Address& lhs, Address& rhs) noexcept;
 ```
 
 - **Effects:**
-
   - Swaps the internal state of two `Address` objects, including cached `protocol` and `port`.
-
 - **Complexity:** Constant.
 
 ---
@@ -404,11 +360,8 @@ std::error_code make_error_code(socket_errc e) noexcept;
 ```
 
 - **Description:** The `make_error_code` function converts a `socket_errc` enumeration value into a `std::error_code`. It is used to integrate the socket error conditions in the library with the standard error handling mechanisms in C++.
-
 - **Parameters:**
-
   - `e`. A value of type `socket_errc`, representing the error code to be converted to a `std::error_code`.
-
 - **Return Value:** A `std::error_code` that represents the error code corresponding to the `socket_errc` value `e`.
 
 #### `make_error_condition(socket_errc)`
@@ -420,11 +373,8 @@ std::error_condition make_error_condition(socket_errc e) noexcept;
 ```
 
 - **Description:** The `make_error_condition` function converts a `socket_errc` enumeration value into a `std::error_condition`.
-
 - **Parameters:**
-
   - `e`. A value of type `socket_errc`, representing the error code to be converted to a `std::error_condition`.
-
 - **Return Value:** A `std::error_condition` that represents the error code corresponding to the `socket_errc` value `e`.
 
 #### `std::is_error_condition_enum<sockify::socket_errc>`
@@ -457,9 +407,7 @@ const char* name() const noexcept override;
 ```
 
 - **Description:**
-
   - Returns the name of the error category, which is used for debugging and inspecting error categories.
-
 - **Return Value:** A constant C-string representing the name of the error category: `"sockify::socket_category"`.
 
 ```cpp
@@ -467,13 +415,9 @@ std::error_condition default_error_condition(int ev) const noexcept override;
 ```
 
 - **Description:**
-
   - Maps an integer error code (`ev`) to a `std::error_condition` based on `socket_errc` values.
-
 - **Parameters:**
-
   - `ev`: The error code to map.
-
 - **Return Value:** A corresponding std::error_condition.
 
 #### `socket_category()`
@@ -488,13 +432,218 @@ const sockify::details::socket_category_impl& socket_category() noexcept;
 
 ### `Buffer`
 
-The `Buffer` class is an alias for `std::vector<std::byte>`, providing a dynamic, resizable buffer specifically designed to store raw binary data. It is optimized for use in networking contexts, such as socket communication, where you need to handle and manipulate data at a byte level.
+The `Buffer` class is an alias for `std::vector<std::byte>`, providing a dynamic, resizable buffer specifically designed to store raw binary data.
 
 #### Synopsis
 
 ```cpp
 using Buffer = std::vector<std::byte>;
 ```
+
+---
+
+### `Socket`
+
+The `Socket` class defines a unified, protocol-agnostic interface for synchronous sockets. It encapsulates the basic lifecycle, option management and read/write interfaces, and is intended to be inherited by concrete socket types such as `TCPSocket` and `UDPSocket`.
+
+#### Member Types
+
+| Name                 | Explanation                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| `duration`           | Type representing durations for timeouts (`std::chrono::milliseconds` on most platforms). |
+| `buffer_type`        | Type representing buffers used for socket I/O operations (always `Buffer`).               |
+| `address_type`       | Type representing socket addresses (always `Address`).                                    |
+| `native_handle_type` | Platform-specific socket handle.                                                          |
+
+#### Data Members
+
+| Name            | Type                      | Explanation                                                  |
+| --------------- | ------------------------- | ------------------------------------------------------------ |
+| `blocking`      | `bool`                    | Whether the socket is in blocking mode.                      |
+| `inheritable`   | `bool`                    | Whether the socket handle is inheritable by child processes. |
+| `native_handle` | `native_handle_type`      | Platform-specific socket handle.                             |
+| `timeout`       | `std::optional<duration>` | The timeout duration for socket operations.                  |
+
+#### Member Functions
+
+1. **Destructor**
+
+```cpp
+virtual ~Socket();
+```
+
+- **Effects:**
+  - Destroys the `Socket` object, releasing any associated resources. This is a virtual destructor to ensure proper cleanup when derived classes are destroyed.
+
+2. **Operations**
+
+```cpp
+virtual void bind(const address_type& address) = 0;
+```
+
+- **Effects:**
+  - Binds the socket to the specified local address.
+
+```cpp
+virtual void connect(const address_type& address) = 0;
+```
+
+- **Effects:**
+  - Connects the socket to the specified remote address.
+
+```cpp
+virtual void listen(int backlog = SOMAXCONN);
+```
+
+- **Effects:**
+  - Puts the socket into listening mode, allowing it to accept incoming connections. Optional to override depending on the socket type.
+
+```cpp
+virtual std::unique_ptr<Socket> accept();
+```
+
+- **Effects:**
+  - Accepts an incoming connection on a listening socket. Returns a new `Socket` object representing the accepted connection.
+
+```cpp
+virtual void close() noexcept = 0;
+```
+
+- **Effects:**
+  - Closes the socket, releasing any associated resources.
+
+```cpp
+virtual std::unique_ptr<Socket> dup() const = 0;
+```
+
+- **Effects:**
+  - Returns a new `Socket` object that is a duplicate of the current socket.
+
+```cpp
+virtual native_handle_type detach() = 0;
+```
+
+- **Effects:**
+  - Detaches the socket handle from the `Socket` object, allowing it to be used independently.
+
+```cpp
+virtual void setblocking(bool flag);
+```
+
+- **Effects:**
+  - Sets the socket to blocking or non-blocking mode.
+
+```cpp
+virtual bool getblocking() const;
+```
+
+- **Returns:**
+  - `true` if the socket is in blocking mode, `false` if non-blocking.
+
+```cpp
+virtual void settimeout(duration timeout);
+```
+
+- **Effects:**
+  - Sets the timeout duration for operations like `recv()` and `send()`.
+
+```cpp
+virtual std::optional<duration> gettimeout() const;
+```
+
+- **Returns:**
+  - The current timeout duration, if set.
+
+```cpp
+virtual void setsockopt(int level, int optname, int value);
+```
+
+- **Effects:**
+  - Sets socket options using `setsockopt`.
+
+```cpp
+virtual int getsockopt(int level, int optname) const;
+```
+
+- **Returns:**
+  - The value of the specified socket option.
+
+```cpp
+virtual void set_inheritable(bool inheritable);
+```
+
+- **Effects:**
+  - Sets whether the socket handle should be inheritable by child processes.
+
+```cpp
+virtual bool get_inheritable() const;
+```
+
+- **Returns:**
+  - `true` if the socket is inheritable by child processes, `false` otherwise.
+
+```cpp
+virtual address_type getsockname() const = 0;
+```
+
+- **Returns:**
+  - The local address to which the socket is bound.
+
+```cpp
+virtual address_type getpeername() const = 0;
+```
+
+- **Returns:**
+  - The address of the remote peer to which the socket is connected.
+
+```cpp
+virtual std::size_t send(const buffer_type& buf, int flags = 0);
+```
+
+- **Returns:**
+  - The number of bytes sent.
+
+```cpp
+virtual std::size_t sendto(const buffer_type& buf, const address_type& dest, int flags = 0);
+```
+
+- **Returns:**
+  - The number of bytes sent to the specified destination.
+
+```cpp
+virtual std::size_t sendall(const buffer_type& buf, int flags = 0);
+```
+
+- **Returns:**
+  - The number of bytes sent (ensuring all data in the buffer is written).
+
+```cpp
+virtual buffer_type recv(int flags = 0);
+```
+
+- **Returns:**
+  - A `buffer_type` containing the received data.
+
+```cpp
+virtual buffer_type recvfrom(address_type& src, int flags = 0);
+```
+
+- **Returns:**
+  - A `buffer_type` containing the received data and the source address.
+
+```cpp
+virtual void shutdown(int how) = 0;
+```
+
+- **Effects:**
+  - Shuts down the socket's communication in the specified direction (`how` can be `SHUT_RD`, `SHUT_WR`, or `SHUT_RDWR`).
+
+```cpp
+virtual native_handle_type native_handle() const noexcept;
+```
+
+- **Returns:**
+  - The platform-specific socket handle.
 
 ---
 
