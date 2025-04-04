@@ -8,7 +8,7 @@
 
 Sockify provides a uniform interface for network programming on all major platforms, abstracting away platform-dependent socket operations and is written to work well with the C++ standard library. For example, sockets can be treated as regular I/O streams. This allows applications to read from and write to network sockets through well-known `std::istream` and `std::ostream` interfaces.
 
-All of Sockify's advanced features are optional. Secure connections are provided via integration with [_OpenSSL_](https://github.com/openssl/openssl) or [_MbedTLS_](https://github.com/Mbed-TLS/mbedtls), if it is enabled at compile time. If [_libevent_](https://github.com/libevent/libevent) is present, Sockify also uses an event-based model of I/O, with support for multiplexing across multiple sockets with little overhead. Without _libevent_, a synchronous default is provided.
+All of Sockify's advanced features are optional. Secure connections are provided via integration with [_OpenSSL_](https://github.com/openssl/openssl) or [_MbedTLS_](https://github.com/Mbed-TLS/mbedtls), if it is enabled at compile time. If [_libevent_](https://github.com/libevent/libevent) is present, Sockify also uses an event-based model of I/O, with support for multiplexing across multiple sockets with little overhead. Without _libevent_, a simpler minimal default is provided.
 
 The library is built to be extensible, so it can support other transport protocols in the future.
 
@@ -61,10 +61,10 @@ As you program with Sockify, keep in mind the following rules to help you get be
                       +-----------------------------------+
                              /                     \
                             /                       \
-                   +----------------+       +---------------+
-                   |  LibeventLoop  |       | SyncEventLoop |
-                   | (asynchronous) |       | (synchronous) |
-                   +----------------+       +---------------+
+                 +------------------+       +-----------------+
+                 |  AsyncEventLoop  |       | SimpleEventLoop |
+                 | (using libevent) |       |    (minimal)    |
+                 +------------------+       +-----------------+
                   (Sockets register with an EventLoop for I/O)
 
                +-------------------------------------------------+
@@ -117,7 +117,7 @@ The `Address` class encapsulates a complete network address. Internally, it stor
 Address() noexcept;
 ```
 
-- **Effect(s):**
+- **Effects:**
   - Constructs an `Address` with a default-initialized `sockaddr_storage`. The values of `port` and `protocol` are undefined.
 - **Complexity:** Constant.
 
@@ -127,12 +127,12 @@ Address() noexcept;
 Address(const_pointer addr) noexcept;
 ```
 
-- **Effect(s):**
+- **Effects:**
 
   - Constructs an `Address` object by copying the data from the memory pointed to by `addr` into the internal `address` member. The constructor then deduces the port number and protocol from the contents of the raw address structure.
   - Specifically, if `addr->ss_family` is `AF_INET`, the constructor extracts the port from the corresponding `sockaddr_in` structure and sets the protocol to `Protocol::IPv4`; if `addr->ss_family` is `AF_INET6`, it extracts the port from the corresponding `sockaddr_in6` structure and sets the protocol to `Protocol::IPv6`.
 
-- **Precondition(s):**
+- **Preconditions:**
 
   - `addr` shall not be a null pointer.
   - `addr` must point to a valid socket address (either IPv4 or IPv6).
@@ -145,12 +145,12 @@ Address(const_pointer addr) noexcept;
 Address(std::string_view addr_str, uint16_t port);
 ```
 
-- **Effect(s):**
+- **Effects:**
 
   - Parses `addr_str` (e.g., `"127.0.0.1"` or `"::1"`) to initialize `address` and deduce `protocol`; caches the given port in `port`.
   - If the string cannot be parsed into a valid address, an exception is thrown (see _Exceptions_).
 
-- **Precondition(s):**
+- **Preconditions:**
 
   - `addr_str` must not be empty.
 
@@ -167,7 +167,7 @@ Address(std::string_view addr_str, uint16_t port);
 explicit Address(std::string_view str);
 ```
 
-- **Effect(s):**
+- **Effects:**
 
   - Constructs an `Address` object from the provided string `str`. This string must represent the address in the exact format returned by the `to_string()` member function, which is:
     - For IPv4 addresses: `"ip:port"` (e.g., `"192.168.0.1:8080"`).
@@ -175,7 +175,7 @@ explicit Address(std::string_view str);
   - The constructor will parse the string, extract the IP address and port, and initialize the internal `sockaddr_storage` object accordingly.
   - If the string cannot be parsed or doesn't match the expected format, an exception is thrown (see _Exceptions_).
 
-- **Precondition(s):**
+- **Preconditions:**
 
   - `str` must not be empty.
 
@@ -192,7 +192,7 @@ explicit Address(std::string_view str);
 Address(const Address& other) noexcept;
 ```
 
-- **Effect(s):**
+- **Effects:**
 
   - Constructs an `Address` as a copy of other, copying `address`, `port`, and `protocol`.
 
@@ -204,7 +204,7 @@ Address(const Address& other) noexcept;
 Address(Address&& other) noexcept;
 ```
 
-- **Effect(s):**
+- **Effects:**
 
   - Constructs an `Address` by moving the members of `other`.
   - After the move `other` will be in a valid but unspecified state.
@@ -217,7 +217,7 @@ Address(Address&& other) noexcept;
 Address& operator=(const Address& other) noexcept;
 ```
 
-- **Effect(s):**
+- **Effects:**
 
   - Copies `other` into `this`, updating `address`, `port` and `protocol`.
 
@@ -229,7 +229,7 @@ Address& operator=(const Address& other) noexcept;
 Address& operator=(Address&& other) noexcept;
 ```
 
-- **Effect(s):**
+- **Effects:**
 
   - Moves the members of `other` into `this`.
   - After the move `other` will be in a valid but unspecified state.
@@ -242,7 +242,7 @@ Address& operator=(Address&& other) noexcept;
 ~Address();
 ```
 
-- **Effect(s):**
+- **Effects:**
   - Destroys the `Address` object.
   - The destructor is trivial if `sockaddr_storage` is trivially destructible.
 
@@ -344,7 +344,7 @@ friend bool operator>=(const Address& lhs, const Address& rhs);
 friend std::ostream& operator<<(std::ostream& strm, const Address& addr);
 ```
 
-- **Effect(s):**
+- **Effects:**
 
   - Inserts the result of `addr.to_string()` into the output stream `strm`.
 
@@ -359,7 +359,7 @@ void swap(Address& other) noexcept;
 friend void swap(Address& lhs, Address& rhs) noexcept;
 ```
 
-- **Effect(s):**
+- **Effects:**
 
   - Swaps the internal state of two `Address` objects, including cached `protocol` and `port`.
 
@@ -470,7 +470,7 @@ std::error_condition default_error_condition(int ev) const noexcept override;
 
   - Maps an integer error code (`ev`) to a `std::error_condition` based on `socket_errc` values.
 
-- **Parameter(s):**
+- **Parameters:**
 
   - `ev`: The error code to map.
 
@@ -495,3 +495,332 @@ The `Buffer` class is an alias for `std::vector<std::byte>`, providing a dynamic
 ```cpp
 using Buffer = std::vector<std::byte>;
 ```
+
+---
+
+### `SocketEvent`
+
+The `SocketEvent` enumeration represents the types of I/O events that can occur on a socket. It is defined as a bitmask type so that multiple event flags may be combined.
+
+#### Synopsis
+
+```cpp
+enum class SocketEvent : uint32_t {
+  None     = 0,                 // No event.
+  Readable = /* unspecified */, // The socket is ready for reading.
+  Writable = /* unspecified */, // The socket is ready for writing.
+  Error    = /* unspecified */, // An error condition has been detected.
+  Timeout  = /* unspecified */  // A timeout has occurred.
+};
+```
+
+#### Requirements
+
+`SocketEvent` satisfies the requirements of [_BitmaskType_](https://eel.is/c++draft/bitmask.types) (which means the bitwise operators `operator&`, `operator|`, `operator^`, `operator~`, `operator&=`, `operator|=`, and `operator^=` are defined for this type).
+
+---
+
+### `EventLoop`
+
+The `EventLoop` class provides an abstraction for I/O management within sockify. It is responsible for registering sockets for I/O events, dispatching callbacks when these events occur, and controlling the polling mechanism. Derived classes must implement its pure virtual functions. The event loop may be used by the `Socket` hierarchy to integrate different I/O behaviors.
+
+#### Member Types
+
+| Name           | Explanation                                                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `socket_type`  | An alias for the socket type managed by the event loop. Defined as `Socket`, which is the base type for all sockify sockets.                             |
+| `event_type`   | An alias for `SocketEvent`, which represents the types of I/O events that can occur on a socket.                                                         |
+| `handler_type` | A callable type defined as `std::function<void(socket_type&, event_type)>`. This callback is invoked when a registered socket is signaled with an event. |
+| `duration`     | An alias for the duration type used for timeouts, typically defined as `std::chrono::milliseconds` on most platforms.                                    |
+
+#### Member Objects (Protected)
+
+| Name             | Type                                             | Explanation                                                                            |
+| ---------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `event_handlers` | `std::unordered_map<socket_type*, handler_type>` | A mapping from registered socket pointers to their associated event handler callbacks. |
+| `poll_timeout`   | `duration`                                       | The maximum duration for which the event loop blocks while waiting for events.         |
+
+#### Member Functions
+
+1. **Destructor**
+
+```cpp
+virtual ~EventLoop();
+```
+
+- **Effects:**
+  - Destroys the event loop object, releasing all associated resources.
+- **Complexity:** Constant.
+
+2. **Interfaces**
+
+```cpp
+virtual bool register_socket(socket_type& socket, handler_type handler) = 0;
+```
+
+- **Effects:**
+  - Registers the specified socket with the event loop, associating it with the provided handler.
+  - Upon detection of an I/O event (readable, writable, error or timeout), the event loop shall invoke the handler, passing the socket and the appropriate combination of `event_type` flags.
+- **Parameters:**
+  - `socket`: A reference to a `Socket` object to be monitored.
+  - `handler`: A callable object of type `handler_type` to be invoked when an event occurs.
+- **Preconditions:**
+  - `socket` shall be valid.
+- **Returns:**
+  - `true` if registration succeeds; otherwise, `false`.
+- **Exceptions**:
+  - `std::system_error` if an unrecoverable error occurs during registration.
+- **Complexity:** Amortized constant time.
+
+```cpp
+virtual bool unregister_socket(socket_type& socket) noexcept = 0;
+```
+
+- **Effects:**
+  - Unregisters the specified socket from the event loop so that no further events are dispatched for it.
+- **Parameters:**
+  - `socket`: A reference to the socket to be removed.
+- **Returns:**
+  - `true` if the socket was successfully unregistered; otherwise, `false`.
+- **Complexity:** Amortized constant time.
+
+```cpp
+virtual void run() = 0;
+```
+
+- **Effects:**
+  - Enters the event loop, continuously monitoring for I/O events and dispatching the corresponding event handlers. The loop continues until `stop()` is invoked or a fatal error occurs.
+- **Exceptions:**
+  - `std::system_error` if an unrecoverable error occurs during event processing.
+- **Complexity:** Dependent on the underlying polling mechanism and the number of events processed.
+
+```cpp
+virtual void stop() noexcept = 0;
+```
+
+- **Effects:**
+  - Signals the event loop to terminate, causing any ongoing `run()` invocation to return as soon as possible.
+- **Complexity:** Constant.
+
+3. **Member Functions**
+
+```cpp
+duration poll_timeout() const noexcept;
+```
+
+- **Effects:**
+  - Returns the current timeout value that the event loop is using for polling.
+- **Returns:**
+  - The current poll timeout value. If none was previously set, returns the default duration.
+- **Complexity:** Constant.
+
+```cpp
+duration poll_timeout(duration timeout) noexcept;
+```
+
+- **Effects:**
+  - Sets the poll timeout duration, which determines how long the event loop blocks while waiting for I/O events.
+- **Parameters:**
+  - `timeout`: The new timeout duration.
+- **Returns:**
+  - The previous poll timeout value. If none was previously set, returns the default duration.
+- **Complexity:** Constant.
+
+4. **Swap Support**
+
+```cpp
+void swap(EventLoop& other) noexcept;
+friend void swap(EventLoop& lhs, EventLoop& rhs) noexcept;
+```
+
+- **Effects:**
+  - Swaps the internal state of two `EventLoop` objects. After the swap, the internal state (such as event handlers, associated resources, etc.) of `lhs` and `rhs` is exchanged.
+  - Specifically, the derived class should implement this function to swap any internal resources such as event bases or associated handlers.
+- **Complexity:** Constant.
+
+#### Non-Member Function
+
+1. `make_default_event_loop`
+
+```cpp
+std::unique_ptr<EventLoop> make_default_event_loop() noexcept;
+```
+
+- **Effects:**
+  - Attempts to create and return a default instance of an `EventLoop` appropriate for the current platform. The returned instance will be dynamically allocated and managed by a `std::unique_ptr<EventLoop>`.
+- **Returns:**
+  - A `std::unique_ptr<EventLoop>` managing the newly created event loop instance.
+  - If the event loop cannot be created (e.g., due to resource exhaustion), returns an empty `std::unique_ptr<EventLoop>`.
+- **Notes:**
+  - The caller must check whether the returned pointer is valid before using it (e.g., via `operator bool`).
+- **Complexity:** Constant.
+
+---
+
+### `AsyncEventLoop`
+
+The `AsyncEventLoop` class implements the asynchronous event loop using libevent. It overrides all pure virtual functions from the base `EventLoop` interface. This type is movable only; copy construction and copy assignment are deleted. It manages a libevent event base internally, releasing that resource upon destruction.
+
+#### Synopsis
+
+```cpp
+class AsyncEventLoop : public EventLoop
+```
+
+#### New Member Types
+
+| Name           | Explanation                              |
+| -------------- | ---------------------------------------- |
+| `base_type`    | An alias for libevent's event base type. |
+| `base_pointer` | `base_type*`                             |
+
+#### New Member Objects
+
+| Name   | Type           | Explanation                                                                                                                               |
+| ------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `base` | `base_pointer` | A pointer to the libevent event base object. This resource is acquired in the default constructor and must be released in the destructor. |
+
+#### Additional Member Functions
+
+1. **Default Constructor**
+
+```cpp
+AsyncEventLoop();
+```
+
+- **Effects:**
+  - Acquires a new libevent event base (stored in `base`) and initializes libevent-specific state.
+- **Exceptions:**
+  - `std::system_error` if the libevent event base cannot be created.
+- **Complexity:** Constant.
+
+2. **Move Constructor**
+
+```cpp
+AsyncEventLoop(AsyncEventLoop&& other) noexcept;
+```
+
+- **Effects:**
+  - Transfers ownership of `other.base` and any associated state from `other` to `*this`.
+  - After the move, `other` is in a valid but unspecified state.
+- **Complexity:** Constant.
+
+3. **Move Assignment Operator**
+
+```cpp
+AsyncEventLoop& operator=(AsyncEventLoop&& other) noexcept;
+```
+
+- **Effects:**
+  - Releases any current libevent event base owned by `*this` and transfers ownership of `other.base` and state from other to `*this`. After the move, `other` is left in a valid but unspecified state.
+- **Returns:** A reference to `*this`.
+- **Complexity:** Constant.
+
+4. **Copy Constructor and Copy Assignment Operator**
+
+```cpp
+AsyncEventLoop(const AsyncEventLoop&) = delete;
+AsyncEventLoop& operator=(const AsyncEventLoop&) = delete;
+```
+
+- **Effects:**
+  - Copying of `AsyncEventLoop` objects is disabled to ensure exclusive ownership of libevent resources.
+
+5. **Destructor**
+
+```cpp
+virtual ~AsyncEventLoop() noexcept override;
+```
+
+- **Effects:**
+  - Releases the libevent event base (by calling the appropriate libevent deallocation function) and cleans up any associated resources.
+- **Complexity:** Constant.
+
+6. **Swap Support**
+
+```cpp
+void swap(AsyncEventLoop& other) noexcept;
+friend void swap(AsyncEventLoop& lhs, AsyncEventLoop& rhs) noexcept;
+```
+
+- **Effects:**
+  - Swaps the internal state of two `AsyncEventLoop` objects. Specifically, it swaps the internal resources such as the underlying libevent base or other associated handlers between `lhs` and `rhs`.
+  - After the swap, both `lhs` and `rhs` will be in a valid, usable state. The event loop base and other resources are exchanged.
+- **Complexity:** Constant.
+
+---
+
+### `SimpleEventLoop`
+
+The `SimpleEventLoop` class is a minimal, lightweight event loop with fewer dependencies and less complexity than `AsyncEventLoop`. Unlike `AsyncEventLoop`, which relies on an external library like _libevent_, `SimpleEventLoop` is implemented with basic system calls (such as `select()` or `poll()`) to provide fundamental event loop functionality.
+
+#### Synopsis
+
+```cpp
+class SimpleEventLoop : public EventLoop
+```
+
+#### Additional Member Functions
+
+1. **Default Constructor**
+
+```cpp
+SimpleEventLoop() noexcept;
+```
+
+- **Effects:**
+  - Initializes a basic `SimpleEventLoop` with an empty `socket_handlers` map and sets a default poll timeout (e.g., no timeout or a reasonable default).
+- **Complexity:** Constant.
+
+2. **Move Constructor**
+
+```cpp
+SimpleEventLoop(SimpleEventLoop&& other) noexcept;
+```
+
+- **Effects:**
+  - Transfers ownership of resources from `other` to `*this`. After the move, `other` is left in a valid but unspecified state.
+- **Complexity:** Constant.
+
+3. **Move Assignment Operator**
+
+```cpp
+SimpleEventLoop& operator=(SimpleEventLoop&& other) noexcept;
+```
+
+- **Effects:**
+  - Releases any current resources held by `*this` and transfers ownership of resources from `other` to `*this`. After the move, `other` is left in a valid but unspecified state.
+- **Returns:** A reference to `*this`.
+- **Complexity:** Constant.
+
+4. **Copy Constructor and Copy Assignment Operator**
+
+```cpp
+SimpleEventLoop(const SimpleEventLoop&) = delete;
+SimpleEventLoop& operator=(const SimpleEventLoop&) = delete;
+```
+
+- **Effects:**
+  - Copy operations are deleted to prevent shallow copying of the event loop, which could lead to resource management issues.
+
+5. **Destructor**
+
+```cpp
+virtual ~SimpleEventLoop() noexcept override;
+```
+
+- **Effects:**
+  - Cleans up any resources associated with the event loop (e.g., unregistering any active sockets).
+- **Complexity:** Constant.
+
+6. **Swap Support**
+
+```cpp
+void swap(SimpleEventLoop& other) noexcept;
+friend void swap(SimpleEventLoop& lhs, SimpleEventLoop& rhs) noexcept;
+```
+
+- **Effects:**
+  - Swaps the internal state of two `SimpleEventLoop` objects. Specifically, it swaps the internal resources such as the associated handlers between `lhs` and `rhs`.
+  - After the swap, both `lhs` and `rhs` will be in a valid, usable state.
+- **Complexity:** Constant.
