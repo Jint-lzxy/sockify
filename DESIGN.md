@@ -119,6 +119,7 @@ Address() noexcept;
 
 - **Effects:**
   - Constructs an `Address` with a default-initialized `sockaddr_storage`. The values of `port` and `protocol` are undefined.
+  - An internal validity flag is set to indicate the object is empty.
 - **Complexity:** Constant.
 
 2. **Constructor (from raw address)**
@@ -298,7 +299,31 @@ friend bool operator>=(const Address& lhs, const Address& rhs);
 
 - **Complexity:** Linear in the length of the string representations of `lhs` and `rhs`.
 
-12. **Non-Member Functions**
+12. **Observers**
+
+```cpp
+explicit operator bool() const noexcept;
+```
+
+- **Returns:**
+  - `true` if the `Address` object contains a valid (non-empty) address; `false` if it is in the empty state.
+
+```cpp
+void reset() noexcept;
+```
+
+- **Effects:**
+  - Resets the `Address` object to its empty state. After calling `reset()`, the internal `address` is undefined.
+
+```cpp
+value_type release() noexcept;
+```
+
+- **Effects:**
+  - Releases ownership of the internal raw network address, returning the stored `address`. After this call, the `Address` object is reset to its empty state.
+- **Returns:** The released raw address data.
+
+13. **Non-Member Functions**
 
 ```cpp
 friend std::ostream& operator<<(std::ostream& strm, const Address& addr);
@@ -310,7 +335,7 @@ friend std::ostream& operator<<(std::ostream& strm, const Address& addr);
 
   - A reference to `strm`.
 
-13. **Swap Support**
+14. **Swap Support**
 
 ```cpp
 void swap(Address& other) noexcept;
@@ -428,6 +453,55 @@ The function `socket_category()` provides access to the singleton instance of th
 const sockify::details::socket_category_impl& socket_category() noexcept;
 ```
 
+#### `socket_error`
+
+The class `socket_error` defines an exception object that is thrown on failure by the functions in the library.
+
+1. **Synopsis:**
+
+```cpp
+class socket_error : public std::system_error
+```
+
+2. **Constructors**
+
+```cpp
+explicit socket_error(const std::string& message,
+                      const std::error_code& ec);
+explicit socket_error(const char* message,
+                      const std::error_code& ec);
+```
+
+- **Effects:**
+  - Constructs the exception object using `message` as explanation string which can later be retrieved using `what()`. `ec` is used to identify the specific reason for the failure.
+
+3. **Copy Constructor**
+
+```cpp
+socket_error(const socket_error& other) noexcept;
+```
+
+- **Effects:**
+  - Initialize the contents with those of `other`. If `*this` and `other` both have dynamic type `socket_error` then `std::strcmp(what(), other.what()) == 0`.
+
+4. **Copy Assignment Operator**
+
+```cpp
+socket_error& operator=(const socket_error& other) noexcept;
+```
+
+- **Effects:**
+  - Assigns the contents with those of `other`. If `*this` and `other` both have dynamic type `socket_error` then `std::strcmp(what(), other.what()) == 0` after assignment.
+- **Returns:** `*this`
+
+5. **Member Function**
+
+```cpp
+virtual const char* what() const noexcept override;
+```
+
+- **Returns:** The explanatory string. Pointer to an implementation-defined null-terminated string with explanatory information. The string is suitable for conversion and display as a `std::wstring`. The pointer is guaranteed to be valid at least until the exception object from which it is obtained is destroyed, or until a non-const member function (e.g. copy assignment operator) on the exception object is called.
+
 ---
 
 ### `Buffer`
@@ -482,105 +556,145 @@ virtual void bind(const address_type& address) = 0;
 ```
 
 - **Effects:**
-  - Binds the socket to the specified local address.
+  - Binds the socket to the specified local address. Required before calling `listen()` on server sockets.
+- **Parameters:**
+  - `address`: the local endpoint
+- **Exceptions:**
+  - `socket_error` on failure, such as if the address is already in use or the socket is invalid.
+- **Complexity:** Constant to linear, depending on internal address resolution and validation.
 
 ```cpp
 virtual void connect(const address_type& address) = 0;
 ```
 
 - **Effects:**
-  - Connects the socket to the specified remote address.
+  - Establishes a connection to the specified remote address.
+- **Parameters:**
+  - `address`: A valid remote socket address.
+- **Exceptions:**
+  - `socket_error` on failure like timeout, unreachable host or permission denied.
+- **Complexity:** Potentially unbounded (depends on network latency and TCP handshake).
 
 ```cpp
 virtual void listen(int backlog = SOMAXCONN);
 ```
 
 - **Effects:**
-  - Puts the socket into listening mode, allowing it to accept incoming connections. Optional to override depending on the socket type.
+  - Marks the socket as passive, used to accept incoming connection requests.
+- **Parameters:**
+  - `backlog`: Maximum number of pending connections; defaults to `SOMAXCONN`.
+- **Exceptions:**
+  - `socket_error` on failure, such as if the socket is invalid or was not bound.
+- **Complexity:** Constant
 
 ```cpp
 virtual std::unique_ptr<Socket> accept();
 ```
 
 - **Effects:**
-  - Accepts an incoming connection on a listening socket. Returns a new `Socket` object representing the accepted connection.
+  - Accepts a pending connection and returns a new `Socket` instance for the connection.
+- **Exceptions:**
+  - `socket_error` on failure, such as if the socket is not in listening mode or a network error occurs.
+- **Complexity:** Blocking or constant, depending on mode; may block if no pending connection exists.
 
 ```cpp
 virtual void close() noexcept = 0;
 ```
 
 - **Effects:**
-  - Closes the socket, releasing any associated resources.
-
-```cpp
-virtual std::unique_ptr<Socket> dup() const = 0;
-```
-
-- **Effects:**
-  - Returns a new `Socket` object that is a duplicate of the current socket.
+  - Closes the socket, invalidating its handle and releasing all associated resources.
+- **Complexity:** Constant
 
 ```cpp
 virtual native_handle_type detach() = 0;
 ```
 
 - **Effects:**
-  - Detaches the socket handle from the `Socket` object, allowing it to be used independently.
+  - Releases ownership of the underlying socket handle and returns it to the caller.
+- **Exceptions:**
+  - `socket_error` if the handle is already detached or invalid.
+- **Complexity:** Constant
 
 ```cpp
 virtual void setblocking(bool flag);
 ```
 
 - **Effects:**
-  - Sets the socket to blocking or non-blocking mode.
+  - Enables or disables blocking mode on the socket.
+- **Parameters:**
+  - `flag`: `true` for blocking mode; `false` for non-blocking.
+- **Exceptions:**
+  - `socket_error` if the operation is unsupported on the socket type or fails at the OS level.
+- **Complexity:** Constant
 
 ```cpp
-virtual bool getblocking() const;
+virtual bool getblocking() const noexcept;
 ```
 
 - **Returns:**
-  - `true` if the socket is in blocking mode, `false` if non-blocking.
+  - `true` if the socket is in blocking mode, otherwise `false`.
+- **Complexity:** Constant
 
 ```cpp
-virtual void settimeout(duration timeout);
+virtual void settimeout(duration timeout) noexcept;
 ```
 
 - **Effects:**
-  - Sets the timeout duration for operations like `recv()` and `send()`.
+  - Sets the timeout value for blocking socket operations like `recv()` or `send()`.
+- **Parameters:**
+  - `timeout`: The maximum time to block.
+- **Complexity:** Constant
 
 ```cpp
-virtual std::optional<duration> gettimeout() const;
+virtual std::optional<duration> gettimeout() const noexcept;
 ```
 
 - **Returns:**
-  - The current timeout duration, if set.
+  - The current timeout for blocking operations, or `std::nullopt` if no timeout is set.
 
 ```cpp
 virtual void setsockopt(int level, int optname, int value);
 ```
 
 - **Effects:**
-  - Sets socket options using `setsockopt`.
+  - Sets the value of a socket option.
+- **Parameters:**
+  - `level`: Protocol level (e.g., `SOL_SOCKET`).
+  - `optname`: Option name.
+  - `value`: Value to set.
+- **Exceptions:**
+  - `socket_error` if the option is unsupported or the socket is invalid.
+- **Complexity:** Constant
 
 ```cpp
 virtual int getsockopt(int level, int optname) const;
 ```
 
 - **Returns:**
-  - The value of the specified socket option.
+  - The value of the requested socket option.
+- **Exceptions:**
+  - `socket_error` on error
+- **Complexity:** Constant
 
 ```cpp
 virtual void set_inheritable(bool inheritable);
 ```
 
 - **Effects:**
-  - Sets whether the socket handle should be inheritable by child processes.
+  - Configures whether the socket handle is inherited by child processes on `fork()`/`exec()`.
+- **Parameters:**
+  - `inheritable`: `true` to allow inheritance; `false` to prevent it.
+- **Exceptions:**
+  - `socket_error` if the operation fails due to platform restrictions.
+- **Complexity:** Constant
 
 ```cpp
-virtual bool get_inheritable() const;
+virtual bool get_inheritable() const noexcept;
 ```
 
 - **Returns:**
   - `true` if the socket is inheritable by child processes, `false` otherwise.
+- **Complexity:** Constant
 
 ```cpp
 virtual address_type getsockname() const = 0;
@@ -588,6 +702,9 @@ virtual address_type getsockname() const = 0;
 
 - **Returns:**
   - The local address to which the socket is bound.
+- **Exceptions:**
+  - `socket_error` if the socket is not bound or invalid.
+- **Complexity:** Constant
 
 ```cpp
 virtual address_type getpeername() const = 0;
@@ -595,41 +712,97 @@ virtual address_type getpeername() const = 0;
 
 - **Returns:**
   - The address of the remote peer to which the socket is connected.
+- **Exceptions:**
+  - `socket_error` if the socket is not connected.
+- **Complexity:** Constant
 
 ```cpp
 virtual std::size_t send(const buffer_type& buf, int flags = 0);
 ```
 
+- **Effects:**
+  - Sends data from `buf` to the connected peer. `flags` modifies behavior (e.g., `MSG_DONTWAIT`).
 - **Returns:**
   - The number of bytes sent.
+- **Exceptions:**
+  - `socket_error` if the socket is not connected or sending fails.
+- **Complexity:** Linear in the size of `buf`, but depends on system buffer state and network I/O.
 
 ```cpp
 virtual std::size_t sendto(const buffer_type& buf, const address_type& dest, int flags = 0);
 ```
 
+- **Effects:**
+  - Sends the data to the specified destination address (used primarily for datagram sockets).
 - **Returns:**
-  - The number of bytes sent to the specified destination.
+  - The number of bytes sent.
+- **Exceptions:**
+  - `socket_error` on failure, such as if the socket is connected.
+- **Complexity:** Linear in the size of `buf`.
 
 ```cpp
 virtual std::size_t sendall(const buffer_type& buf, int flags = 0);
 ```
 
+- **Effects:**
+  - Sends all data in `buf`, retrying if needed until all bytes are sent or an error occurs.
 - **Returns:**
-  - The number of bytes sent (ensuring all data in the buffer is written).
+  - Total number of bytes sent.
+- **Exceptions:**
+  - `socket_error` if the socket is not connected. Will not throw if an error occurs, check the return value instead.
+- **Complexity:** Linear in the size of `buf`, possibly higher due to retries.
 
 ```cpp
-virtual buffer_type recv(int flags = 0);
+virtual std::size_t sendfile(std::ifstream& file, std::streampos offset = 0, std::size_t count = 0);
 ```
 
-- **Returns:**
-  - A `buffer_type` containing the received data.
+- **Effects**:
+  - Sends data from the provided file over the socket. The file must be a regular file object opened in binary mode.
+- **Parameters:**
+  - `offset` specifies the position in the file from which to start reading. If not provided, it defaults to `0`.
+  - `count` specifies the total number of bytes to send. If not provided, the function sends the file until EOF is reached.
+- **Returns:** The total number of bytes sent.
+- **Exceptions**:
+  - `std::invalid_argument` if the file is not open or the socket is not of `SOCK_STREAM` type.
+  - `std::ios_base::failure` if an error occurs while reading from the file.
+  - `socket_error` depending on the underlying socket implementation.
+- **Notes**:
+  - This function is designed to send the entire content of the file (or a portion, if `count` is provided) in chunks over the socket.
+  - Non-blocking sockets are not supported for this operation.
 
 ```cpp
-virtual buffer_type recvfrom(address_type& src, int flags = 0);
+virtual buffer_type recv(std::size_t count, int flags = 0);
 ```
 
+- **Effects:**
+  - Receives data from the connected peer, reading up to `count` bytes.
+  - The function blocks until at least some data is received or the connection is closed, unless the socket is non-blocking or a timeout is set.
+- **Parameters:**
+  - `count`: The maximum number of bytes to be received from the socket.
+  - `flags`: Optional flags that modify the behavior of the call.
 - **Returns:**
-  - A `buffer_type` containing the received data and the source address.
+  - A buffer containing received data.
+- **Exceptions:**
+  - `socket_error` on failure, such as if the socket is not connected.
+- **Complexity:** Linear in the size of received data.
+
+```cpp
+virtual buffer_type recvfrom(std::size_t count, address_type& src, int flags = 0);
+```
+
+- **Effects:**
+  - Receives data from the socket up to a maximum of `count` bytes.
+  - The function blocks until some data is received, the specified number of bytes is read, or the connection is closed, unless the socket is configured for non-blocking operation or a timeout is set.
+  - Fills the `src` parameter with the sender's address if possible.
+- **Parameters:**
+  - `count`: The maximum number of bytes to be received.
+  - `src`: Sender's address information.
+  - `flags`: Optional flags to modify the behavior of the call.
+- **Returns:**
+  - A buffer containing received data.
+- **Exceptions:**
+  - `socket_error` on failure, such as a network failure, an interrupted system call, or if the socket is invalid.
+- **Complexity:** Linear in the size of received data.
 
 ```cpp
 virtual void shutdown(int how) = 0;
@@ -637,6 +810,9 @@ virtual void shutdown(int how) = 0;
 
 - **Effects:**
   - Shuts down the socket's communication in the specified direction (`how` can be `SHUT_RD`, `SHUT_WR`, or `SHUT_RDWR`).
+- **Exceptions:**
+  - `socket_error` on failure, such as invalid `how`.
+- **Complexity:** Constant.
 
 ```cpp
 virtual native_handle_type native_handle() const noexcept;
@@ -644,6 +820,18 @@ virtual native_handle_type native_handle() const noexcept;
 
 - **Returns:**
   - The platform-specific socket handle.
+
+3. **Swap Support**
+
+```cpp
+void swap(Socket& other) noexcept;
+friend void swap(Socket& lhs, Socket& rhs) noexcept;
+```
+
+- **Effects:**
+  - Swaps the internal state of two `Socket` objects. After the swap, the internal state of `lhs` and `rhs` is exchanged.
+  - Specifically, the derived class should implement this function to swap any internal resources.
+- **Complexity:** Constant.
 
 ---
 
@@ -718,7 +906,7 @@ virtual bool register_socket(socket_type& socket, handler_type handler) = 0;
 - **Returns:**
   - `true` if registration succeeds; otherwise, `false`.
 - **Exceptions**:
-  - `std::system_error` if an unrecoverable error occurs during registration.
+  - `socket_error` if an unrecoverable error occurs during registration.
 - **Complexity:** Amortized constant time.
 
 ```cpp
@@ -740,7 +928,7 @@ virtual void run() = 0;
 - **Effects:**
   - Enters the event loop, continuously monitoring for I/O events and dispatching the corresponding event handlers. The loop continues until `stop()` is invoked or a fatal error occurs.
 - **Exceptions:**
-  - `std::system_error` if an unrecoverable error occurs during event processing.
+  - `socket_error` if an unrecoverable error occurs during event processing.
 - **Complexity:** Dependent on the underlying polling mechanism and the number of events processed.
 
 ```cpp
@@ -840,7 +1028,7 @@ AsyncEventLoop();
 - **Effects:**
   - Acquires a new libevent event base (stored in `base`) and initializes libevent-specific state.
 - **Exceptions:**
-  - `std::system_error` if the libevent event base cannot be created.
+  - `socket_error` if the libevent event base cannot be created.
 - **Complexity:** Constant.
 
 2. **Move Constructor**
