@@ -8,7 +8,7 @@
 
 Sockify provides a uniform interface for network programming on all major platforms, abstracting away platform-dependent socket operations and is written to work well with the C++ standard library. For example, sockets can be treated as regular I/O streams. This allows applications to read from and write to network sockets through well-known `std::istream` and `std::ostream` interfaces.
 
-All of Sockify's advanced features are optional. Secure connections are provided via integration with [_OpenSSL_](https://github.com/openssl/openssl) or [_MbedTLS_](https://github.com/Mbed-TLS/mbedtls), if it is enabled at compile time. If [_libevent_](https://github.com/libevent/libevent) is present, Sockify also uses an event-based model of I/O, with support for multiplexing across multiple sockets with little overhead. Without _libevent_, a simpler minimal default is provided.
+All of Sockify's advanced features are optional. Secure connections are provided via integration with [_OpenSSL_](https://github.com/openssl/openssl) or [_MbedTLS_](https://github.com/Mbed-TLS/mbedtls), if it is enabled at compile time. If [_libevent_](https://github.com/libevent/libevent) is present, Sockify also supports an event-based model of I/O, with support for multiplexing across multiple sockets with little overhead. Without _libevent_, a simpler minimal default is provided.
 
 The library is built to be extensible, so it can support other transport protocols in the future.
 
@@ -19,7 +19,7 @@ As you program with Sockify, keep in mind the following rules to help you get be
 - Use modern C++ features such as `std::unique_ptr` and `std::shared_ptr` to manage resources. Use RAII patterns wherever feasible so that resources are cleaned up properly.
 - Sockify is designed to be low overhead by default. SSL/TLS and event-driven I/O are add-on features that only need to be enabled if necessary. If your app doesn't need SSL, for instance, simply don't enable it at compile time to keep the library lean and fast.
 - Sockify does **not** implement thread-safe sockets by default. This is to avoid the performance overhead of locking mechanisms. If your application requires concurrency, use message-passing, worker threads and/or external synchronization mechanisms. For multi-threaded applications, ensure that each socket instance is only used within a single thread unless explicitly designed otherwise.
-- Sockify uses `std::error_code` for non-fatal errors so that you can handle failures without exceptions. However, if your application requires exception handling for errors, configure your project to use exceptions where required.
+- Sockify supports `std::error_code` for non-fatal errors, allowing you to handle failures without relying on exceptions. If you prefer not to use exception handling, simply call the overloads that accept a `std::error_code&` parameter.
 - Sockify abstracts platform-specific details, but do remember to bear in mind platform-specific optimizations or limitations. For instance, Windows does its own socket management differently from Unix-based systems.
 
 ## Primary Library Components
@@ -483,10 +483,8 @@ class socket_error : public std::system_error
 2. **Constructors**
 
 ```cpp
-explicit socket_error(const std::string& message,
-                      const std::error_code& ec);
-explicit socket_error(const char* message,
-                      const std::error_code& ec);
+explicit socket_error(const std::string& message, const std::error_code& ec);
+explicit socket_error(const char* message, const std::error_code& ec);
 ```
 
 - **Effects:**
@@ -568,8 +566,12 @@ virtual ~Socket();
 
 2. **Operations**
 
+> [!NOTE]
+> For each member function that may throw a `socket_error` (or other exceptions), a non-throwing overload is provided. These overloads accept an additional parameter of type `std::error_code& ec` (placed before any default arguments when applicable) that is used to report errors instead of throwing an exception.
+
 ```cpp
 virtual void bind(const address_type& address) = 0;
+virtual void bind(const address_type& address, std::error_code& ec) noexcept = 0;
 ```
 
 - **Effects:**
@@ -582,6 +584,7 @@ virtual void bind(const address_type& address) = 0;
 
 ```cpp
 virtual void connect(const address_type& address) = 0;
+virtual void connect(const address_type& address, std::error_code& ec) noexcept = 0;
 ```
 
 - **Effects:**
@@ -595,6 +598,7 @@ virtual void connect(const address_type& address) = 0;
 
 ```cpp
 virtual void listen(int backlog = SOMAXCONN);
+virtual void listen(std::error_code& ec, int backlog = SOMAXCONN) noexcept;
 ```
 
 - **Effects:**
@@ -606,7 +610,8 @@ virtual void listen(int backlog = SOMAXCONN);
 - **Complexity:** Constant
 
 ```cpp
-virtual std::unique_ptr<Socket> accept();
+virtual std::unique_ptr<Socket> accept() = 0;
+virtual std::unique_ptr<Socket> accept(std::error_code& ec) noexcept = 0;
 ```
 
 - **Effects:**
@@ -625,6 +630,7 @@ virtual void close() noexcept = 0;
 
 ```cpp
 virtual native_handle_type detach() = 0;
+virtual native_handle_type detach(std::error_code& ec) noexcept = 0;
 ```
 
 - **Effects:**
@@ -635,6 +641,7 @@ virtual native_handle_type detach() = 0;
 
 ```cpp
 virtual void setblocking(bool would_block);
+virtual void setblocking(bool would_block, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
@@ -659,13 +666,16 @@ virtual bool getblocking() const noexcept;
 - **Complexity:** Constant
 
 ```cpp
-virtual void settimeout(duration timeout) noexcept;
+virtual void settimeout(duration timeout);
+virtual void settimeout(duration timeout, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
   - Sets the timeout value for blocking socket operations like `recv()` or `send()`.
 - **Parameters:**
   - `timeout`: The maximum time to block.
+- **Exceptions:**
+  - `socket_error` if the operation is unsupported on the socket type or fails at the OS level.
 - **Notes:**
   - The `timeout` value can be a non-negative integer in `duration`, or a negative value indicating blocking behavior. Specifically:
     - If a non-zero positive value is provided, subsequent socket operations will raise exceptions if the operation isn't completed within the specified timeout period.
@@ -682,6 +692,7 @@ virtual std::optional<duration> gettimeout() const noexcept;
 
 ```cpp
 virtual void setsockopt(int level, int optname, int value);
+virtual void setsockopt(int level, int optname, int value, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
@@ -696,6 +707,7 @@ virtual void setsockopt(int level, int optname, int value);
 
 ```cpp
 virtual int getsockopt(int level, int optname) const;
+virtual int getsockopt(int level, int optname, std::error_code& ec) const noexcept;
 ```
 
 - **Returns:**
@@ -706,6 +718,7 @@ virtual int getsockopt(int level, int optname) const;
 
 ```cpp
 virtual void setinheritable(bool inheritable);
+virtual void setinheritable(bool inheritable, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
@@ -726,6 +739,7 @@ virtual bool getinheritable() const noexcept;
 
 ```cpp
 virtual address_type getsockname() const = 0;
+virtual address_type getsockname(std::error_code& ec) const noexcept = 0;
 ```
 
 - **Returns:**
@@ -736,6 +750,7 @@ virtual address_type getsockname() const = 0;
 
 ```cpp
 virtual address_type getpeername() const = 0;
+virtual address_type getpeername(std::error_code& ec) const noexcept = 0;
 ```
 
 - **Returns:**
@@ -746,6 +761,7 @@ virtual address_type getpeername() const = 0;
 
 ```cpp
 virtual std::size_t send(const buffer_type& buf, int flags = 0);
+virtual std::size_t send(const buffer_type& buf, std::error_code& ec, int flags = 0) noexcept;
 ```
 
 - **Effects:**
@@ -758,6 +774,8 @@ virtual std::size_t send(const buffer_type& buf, int flags = 0);
 
 ```cpp
 virtual std::size_t sendto(const buffer_type& buf, const address_type& dest, int flags = 0);
+virtual std::size_t sendto(const buffer_type& buf, const address_type& dest, std::error_code& ec,
+                           int flags = 0) noexcept;
 ```
 
 - **Effects:**
@@ -770,6 +788,7 @@ virtual std::size_t sendto(const buffer_type& buf, const address_type& dest, int
 
 ```cpp
 virtual std::size_t sendall(const buffer_type& buf, int flags = 0);
+virtual std::size_t sendall(const buffer_type& buf, std::error_code& ec, int flags = 0) noexcept;
 ```
 
 - **Effects:**
@@ -782,16 +801,23 @@ virtual std::size_t sendall(const buffer_type& buf, int flags = 0);
 
 ```cpp
 virtual std::size_t sendfile(std::ifstream& file, std::streampos offset = 0, std::size_t count = 0);
+virtual std::size_t sendfile(std::ifstream& file, std::error_code& ec, std::streampos offset = 0,
+                             std::size_t count = 0) noexcept;
+
+virtual std::size_t sendfile(const std::filesystem::path& file_path, std::streampos offset = 0, std::size_t count = 0);
+virtual std::size_t sendfile(const std::filesystem::path& file_path, std::error_code& ec, std::streampos offset = 0,
+                             std::size_t count = 0) noexcept;
 ```
 
 - **Effects**:
   - Sends data from the provided file over the socket. The file must be a regular file object opened in binary mode.
+    - When a filesystem path is provided, the function opens the file in binary mode and then sends its content over the socket.
 - **Parameters:**
   - `offset` specifies the position in the file from which to start reading. If not provided, it defaults to `0`.
   - `count` specifies the total number of bytes to send. If not provided, the function sends the file until EOF is reached.
 - **Returns:** The total number of bytes sent.
 - **Exceptions**:
-  - `std::invalid_argument` if the file is not open or the socket is not of `SOCK_STREAM` type.
+  - `std::invalid_argument` if the file is not open, cannot be opened, or the socket is not of `SOCK_STREAM` type.
   - `std::ios_base::failure` if an error occurs while reading from the file.
   - `socket_error` depending on the underlying socket implementation.
 - **Notes:**:
@@ -800,6 +826,7 @@ virtual std::size_t sendfile(std::ifstream& file, std::streampos offset = 0, std
 
 ```cpp
 virtual buffer_type recv(std::size_t count, int flags = 0);
+virtual buffer_type recv(std::size_t count, std::error_code& ec, int flags = 0) noexcept;
 ```
 
 - **Effects:**
@@ -816,6 +843,7 @@ virtual buffer_type recv(std::size_t count, int flags = 0);
 
 ```cpp
 virtual buffer_type recvfrom(std::size_t count, address_type& src, int flags = 0);
+virtual buffer_type recvfrom(std::size_t count, address_type& src, std::error_code& ec, int flags = 0) noexcept;
 ```
 
 - **Effects:**
@@ -834,6 +862,7 @@ virtual buffer_type recvfrom(std::size_t count, address_type& src, int flags = 0
 
 ```cpp
 virtual void shutdown(int how) = 0;
+virtual void shutdown(int how, std::error_code& ec) noexcept = 0;
 ```
 
 - **Effects:**
