@@ -87,7 +87,7 @@ As you program with Sockify, keep in mind the following rules to help you get be
 
 ### `Address`
 
-The `Address` class encapsulates a complete network address. Internally, it stores a raw network address in a `sockaddr_storage` (designated as its `value_type`), along with a cached port number and protocol indicator (IPv4 or IPv6). Other address details (such as IPv6 flow information) are accessible by directly examining the raw structure via the `get()` member function. The textual representation of the address is produced as a locale-defined multibyte string.
+The `Address` class encapsulates a complete network address. Internally, it stores a raw network address in a `sockaddr_storage` (designated as its `value_type`), along with a cached port number and protocol indicator (IPv4 or IPv6). Other address details (such as IPv6 flow information) are accessible by directly examining the raw structure via the `value()` member function. The textual representation of the address shall be suitable for conversion and display as a `std::wstring`.
 
 #### Member Types
 
@@ -225,13 +225,15 @@ Address& operator=(Address&& other) noexcept;
 
 10. **Accessors**
 
+> [!WARNING]
+> Calling any accessors on an `Address` object while it is in its empty state (e.g., after `reset()` with no arguments) results in undefined behavior.
+
 ```cpp
-pointer get() noexcept;
-const_pointer get() const noexcept;
+const_pointer value() const noexcept;
 ```
 
 - **Returns:**
-  - A pointer to the raw network address obtained via `std::addressof(address)`.
+  - A `const_pointer` to the raw network address obtained via `std::addressof(address)`.
 - **Complexity:** Constant.
 
 ```cpp
@@ -274,6 +276,8 @@ bool operator==(const Address& other) const noexcept;
 
 - **Returns:**
   - `true` if the raw address data, cached port, and cached protocol are identical; otherwise, `false`.
+- **Notes:**
+  - Empty `Address` objects compare equal to each other, but not to any non-empty `Address` object.
 - **Complexity:** Constant.
 
 ```cpp
@@ -294,15 +298,16 @@ friend bool operator>=(const Address& lhs, const Address& rhs);
 - **Effects:**
   - Performs a lexicographical comparison of `lhs.to_string()` and `rhs.to_string()` as if by `std::lexicographical_compare`.
 - **Returns:**
-
   - `true` or `false` depending on the result of the string comparison.
-
+- **Notes:**
+  - Empty `Address` objects are always ordered before any non-empty `Address` objects.
 - **Complexity:** Linear in the length of the string representations of `lhs` and `rhs`.
 
 12. **Observers**
 
 ```cpp
 explicit operator bool() const noexcept;
+bool has_value() const noexcept;
 ```
 
 - **Returns:**
@@ -314,6 +319,18 @@ void reset() noexcept;
 
 - **Effects:**
   - Resets the `Address` object to its empty state. After calling `reset()`, the internal `address` is undefined.
+
+```cpp
+void reset(const_pointer addr) noexcept;
+```
+
+- **Effects:**
+  - Resets the `Address` object using the data pointed to by `addr`. This replaces the internal `address` with the raw socket address structure pointed to by `addr`.
+  - This is semantically equivalent to assigning from a temporary `Address` constructed with `Address(addr)`, but may be more efficient.
+- **Preconditions:**
+  - `addr` shall not be a null pointer.
+  - `addr` must point to a valid socket address (either IPv4 or IPv6).
+- **Complexity:** Constant.
 
 ```cpp
 value_type release() noexcept;
@@ -455,7 +472,7 @@ const sockify::details::socket_category_impl& socket_category() noexcept;
 
 #### `socket_error`
 
-The class `socket_error` defines an exception object that is thrown on failure by the functions in the library.
+The class `socket_error` defines an exception object that is thrown on failure by the functions in the Sockify library.
 
 1. **Synopsis:**
 
@@ -569,6 +586,7 @@ virtual void connect(const address_type& address) = 0;
 
 - **Effects:**
   - Establishes a connection to the specified remote address.
+  - If the connection is interrupted by a signal, the method waits until the connection completes, or raises an exception on timeout (see _Exceptions_), if the signal handler doesn't raise an exception and the socket is blocking or has a timeout. For non-blocking sockets, the method raises an exception if the connection is interrupted by a signal (or the exception raised by the signal handler) (see _Exceptions_).
 - **Parameters:**
   - `address`: A valid remote socket address.
 - **Exceptions:**
@@ -582,7 +600,7 @@ virtual void listen(int backlog = SOMAXCONN);
 - **Effects:**
   - Marks the socket as passive, used to accept incoming connection requests.
 - **Parameters:**
-  - `backlog`: Maximum number of pending connections; defaults to `SOMAXCONN`.
+  - `backlog`: Maximum number of pending connections; defaults to `SOMAXCONN`. If this parameter is specified, it must be at least `0` (if it is lower, it is set to `0`).
 - **Exceptions:**
   - `socket_error` on failure, such as if the socket is invalid or was not bound.
 - **Complexity:** Constant
@@ -616,13 +634,17 @@ virtual native_handle_type detach() = 0;
 - **Complexity:** Constant
 
 ```cpp
-virtual void setblocking(bool flag);
+virtual void setblocking(bool would_block);
 ```
 
 - **Effects:**
   - Enables or disables blocking mode on the socket.
 - **Parameters:**
-  - `flag`: `true` for blocking mode; `false` for non-blocking.
+  - `would_block`: `true` for blocking mode; `false` for non-blocking.
+- **Notes:**
+  - This method is a shorthand for certain `settimeout()` calls:
+    - `setblocking(true)` is equivalent to `settimeout(duration{-1})`
+    - `setblocking(false)` is equivalent to `settimeout(duration{0})`
 - **Exceptions:**
   - `socket_error` if the operation is unsupported on the socket type or fails at the OS level.
 - **Complexity:** Constant
@@ -633,6 +655,7 @@ virtual bool getblocking() const noexcept;
 
 - **Returns:**
   - `true` if the socket is in blocking mode, otherwise `false`.
+- **Notes:** This is equivalent to checking `gettimeout() != 0`.
 - **Complexity:** Constant
 
 ```cpp
@@ -643,6 +666,11 @@ virtual void settimeout(duration timeout) noexcept;
   - Sets the timeout value for blocking socket operations like `recv()` or `send()`.
 - **Parameters:**
   - `timeout`: The maximum time to block.
+- **Notes:**
+  - The `timeout` value can be a non-negative integer in `duration`, or a negative value indicating blocking behavior. Specifically:
+    - If a non-zero positive value is provided, subsequent socket operations will raise exceptions if the operation isn't completed within the specified timeout period.
+    - If `duration{0}` is provided, the socket is set to non-blocking mode, meaning operations will not block and will immediately return if they cannot complete.
+    - If a negative value is provided, the socket is set to blocking mode, meaning operations will block indefinitely until completion.
 - **Complexity:** Constant
 
 ```cpp
@@ -677,7 +705,7 @@ virtual int getsockopt(int level, int optname) const;
 - **Complexity:** Constant
 
 ```cpp
-virtual void set_inheritable(bool inheritable);
+virtual void setinheritable(bool inheritable);
 ```
 
 - **Effects:**
@@ -689,7 +717,7 @@ virtual void set_inheritable(bool inheritable);
 - **Complexity:** Constant
 
 ```cpp
-virtual bool get_inheritable() const noexcept;
+virtual bool getinheritable() const noexcept;
 ```
 
 - **Returns:**
@@ -766,7 +794,7 @@ virtual std::size_t sendfile(std::ifstream& file, std::streampos offset = 0, std
   - `std::invalid_argument` if the file is not open or the socket is not of `SOCK_STREAM` type.
   - `std::ios_base::failure` if an error occurs while reading from the file.
   - `socket_error` depending on the underlying socket implementation.
-- **Notes**:
+- **Notes:**:
   - This function is designed to send the entire content of the file (or a portion, if `count` is provided) in chunks over the socket.
   - Non-blocking sockets are not supported for this operation.
 
@@ -865,7 +893,7 @@ The `EventLoop` class provides an abstraction for I/O management within sockify.
 
 | Name           | Explanation                                                                                                                                              |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `socket_type`  | An alias for the socket type managed by the event loop. Defined as `Socket`, which is the base type for all sockify sockets.                             |
+| `socket_type`  | An alias for the socket type managed by the event loop. Defined as `Socket`, which is the base type for all Sockify sockets.                             |
 | `event_type`   | An alias for `SocketEvent`, which represents the types of I/O events that can occur on a socket.                                                         |
 | `handler_type` | A callable type defined as `std::function<void(socket_type&, event_type)>`. This callback is invoked when a registered socket is signaled with an event. |
 | `duration`     | An alias for the duration type used for timeouts, typically defined as `std::chrono::milliseconds` on most platforms.                                    |
