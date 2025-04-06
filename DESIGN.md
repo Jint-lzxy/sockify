@@ -349,7 +349,6 @@ friend std::ostream& operator<<(std::ostream& strm, const Address& addr);
 - **Effects:**
   - Inserts the result of `addr.to_string()` into the output stream `strm`.
 - **Returns:**
-
   - A reference to `strm`.
 
 14. **Swap Support**
@@ -375,23 +374,48 @@ The scoped enumeration `socket_errc` defines the following constant values repre
 
 ```cpp
 enum class socket_errc : int {
-  success = 0,             // Indicates no error.
-  already_open,            // Attempt to open an already open socket.
-  not_open,                // Socket is not open for operations.
-  already_connected,       // Attempt to connect an already connected socket.
-  not_connected,           // Socket is not connected for operations.
-  shutdown_requested,      // Socket operation failed due to requested shutdown.
-  operation_aborted,       // Operation was aborted or canceled.
-  tls_handshake_failed,    // TLS handshake failed.
-  tls_verification_failed, // TLS certificate verification failed.
-  event_loop_closed,       // Event loop was closed.
-  unsupported_protocol,    // Unsupported protocol requested.
-  invalid_argument,        // Invalid argument was passed.
-  io_error                 // Generic I/O error code for socket operations.
+  // Standard-compatible values
+  success = 0,            // No error
+  address_in_use,         // Address already in use
+  address_not_available,  // Requested address is not available
+  already_connected,      // Socket is already connected
+  bad_file_descriptor,    // Invalid file descriptor
+  connection_refused,     // Connection refused
+  connection_reset,       // Connection reset by peer
+  host_unreachable,       // Remote host is unreachable
+  message_too_large,      // Message size exceeds allowed maximum
+  network_unreachable,    // Network unreachable
+  no_buffer_space,        // No buffer space available
+  not_a_socket,           // Operation attempted on a non-socket
+  not_connected,          // Not connected
+  not_supported,          // Operation not supported
+  operation_in_progress,  // Non-blocking operation in progress
+  operation_would_block,  // Would block (try again)
+  permission_denied,      // Permission denied
+  protocol_not_supported, // Chosen protocol is not supported
+  timed_out,              // Operation timed out
+
+  // Abstracted socket error conditions
+  already_connected,      // Already connected
+  already_open,           // Socket already open
+  event_loop_closed,      // Event loop closed
+  io_error,               // Generic I/O error
+  not_open,               // Socket not open
+  operation_cancelled,    // Operation was cancelled (e.g. due to shutdown)
+  peer_closed_connection, // Remote peer closed the connection
+  resource_exhausted,     // System ran out of some necessary resource (e.g. buffers)
+  shutdown_requested,     // Operation failed due to shutdown request
+
+  // TLS-specific errors
+  tls_zero_return,        // Clean TLS shutdown during read/write;
+                          // The underlying transport (e.g. TCP) may still be open.
+  tls_want_read,          // TLS wants more input data
+  tls_want_write,         // TLS wants to write more data
+  tls_syscall,            // TLS-level system call failure
+  tls_eof,                // Unexpected TLS EOF
+  tls_cert_verify,        // Certificate verification failure
 };
 ```
-
-There are no non-member functions directly related to the `socket_errc` scoped enumeration. However, `socket_errc` is intended to be used with the `make_error_code` function, which provides integration with the standard `std::errc`.
 
 #### `make_error_code(socket_errc)`
 
@@ -453,14 +477,25 @@ const char* name() const noexcept override;
 - **Return Value:** A constant C-string representing the name of the error category: `"sockify::socket_category"`.
 
 ```cpp
-std::error_condition default_error_condition(int ev) const noexcept override;
+std::string message(int ev) const override;
 ```
 
 - **Description:**
-  - Maps an integer error code (`ev`) to a `std::error_condition` based on `socket_errc` values.
+  - Converts an integer error code to a human-readable string by mapping `socket_errc` and `std::errc` values to descriptive messages.
 - **Parameters:**
   - `ev`: The error code to map.
-- **Return Value:** A corresponding std::error_condition.
+- **Return Value:** A descriptive string (e.g., `"Connection refused"`, `"Network unreachable"`, etc.).
+
+```cpp
+bool equivalent(const std::error_code& code, int condition) const override;
+```
+
+- **Description:**
+  - Implements error equivalence logic so that error codes (possibly originating from different categories, such as `std::errc`) can be tested for equivalence with Sockify error conditions.
+- **Parameters:**
+  - `code`: The error code to compare.
+  - `condition`: The integer value representing the error condition.
+- **Return Value:** `true` if the provided `std::error_code` is considered equivalent to the error condition; otherwise, `false`.
 
 #### `socket_category()`
 
@@ -512,7 +547,7 @@ socket_error& operator=(const socket_error& other) noexcept;
 5. **Member Function**
 
 ```cpp
-virtual const char* what() const noexcept override;
+const char* what() const noexcept override;
 ```
 
 - **Returns:** The explanatory string. Pointer to an implementation-defined null-terminated string with explanatory information. The string is suitable for conversion and display as a `std::wstring`. The pointer is guaranteed to be valid at least until the exception object from which it is obtained is destroyed, or until a non-const member function (e.g. copy assignment operator) on the exception object is called.
@@ -548,10 +583,9 @@ The `Socket` class defines a unified, protocol-agnostic interface for synchronou
 
 | Name            | Type                      | Explanation                                                  |
 | --------------- | ------------------------- | ------------------------------------------------------------ |
-| `blocking`      | `bool`                    | Whether the socket is in blocking mode.                      |
+| `timeout`       | `std::optional<duration>` | The timeout duration for socket operations.                  |
 | `inheritable`   | `bool`                    | Whether the socket handle is inheritable by child processes. |
 | `native_handle` | `native_handle_type`      | Platform-specific socket handle.                             |
-| `timeout`       | `std::optional<duration>` | The timeout duration for socket operations.                  |
 
 #### Member Functions
 
