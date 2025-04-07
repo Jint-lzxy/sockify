@@ -926,6 +926,199 @@ friend void swap(Socket& lhs, Socket& rhs) noexcept;
 
 ---
 
+### `TCPSocket`
+
+The `TCPSocket` class encapsulates a TCP socket, providing a high-level interface for managing and interacting with a network socket. It supports the standard operations needed for creating, binding, connecting, reading, writing and closing a TCP socket, while ensuring proper resource management and error handling.
+
+The `TCPSocket` class is marked as final because it already provides a complete and optimized implementation for managing TCP socket operations
+
+#### Synopsis
+
+```cpp
+class TCPSocket final : public Socket {
+public:
+  // Constructors & Destructor
+  TCPSocket();                                     // Default constructor
+  explicit TCPSocket(const address_type& address); // Constructor from address
+  explicit TCPSocket(native_handle_type handle,
+                     const address_type& address = address_type()); // Constructor from native handle
+
+  TCPSocket(const TCPSocket& other);            // Copy constructor
+  TCPSocket& operator=(const TCPSocket& other); // Copy assignment operator
+
+  TCPSocket(TCPSocket&& other) noexcept;            // Move constructor
+  TCPSocket& operator=(TCPSocket&& other) noexcept; // Move assignment operator
+
+  ~TCPSocket() override; // Destructor
+
+  // Socket operations
+  void bind(const address_type& address) override;
+  void bind(const address_type& address, std::error_code& ec) noexcept override;
+
+  void connect(const address_type& address) override;
+  void connect(const address_type& address, std::error_code& ec) noexcept override;
+
+  void listen(int backlog = SOMAXCONN) override;
+  void listen(std::error_code& ec, int backlog = SOMAXCONN) noexcept override;
+
+  std::unique_ptr<Socket> accept() override;
+  std::unique_ptr<Socket> accept(std::error_code& ec) noexcept override;
+
+  void close() noexcept override;
+
+  native_handle_type detach() override;
+  native_handle_type detach(std::error_code& ec) noexcept override;
+
+  void shutdown(int how) override;
+  void shutdown(int how, std::error_code& ec) noexcept override;
+
+  address_type getsockname() const override;
+  address_type getsockname(std::error_code& ec) const noexcept override;
+
+  address_type getpeername() const override;
+  address_type getpeername(std::error_code& ec) const noexcept override;
+
+  // I/O operations
+  std::size_t send(const buffer_type& buf, int flags = 0) override;
+  std::size_t send(const buffer_type& buf, std::error_code& ec, int flags = 0) noexcept override;
+
+  std::size_t sendall(const buffer_type& buf, int flags = 0) override;
+  std::size_t sendall(const buffer_type& buf, std::error_code& ec, int flags = 0) noexcept override;
+
+  std::size_t sendfile(std::ifstream& file, std::streampos offset = 0, std::size_t count = 0) override;
+  std::size_t sendfile(std::ifstream& file,
+                       std::error_code& ec,
+                       std::streampos offset = 0,
+                       std::size_t count     = 0) noexcept override;
+
+  std::size_t
+  sendfile(const std::filesystem::path& file_path, std::streampos offset = 0, std::size_t count = 0) override;
+  std::size_t sendfile(const std::filesystem::path& file_path,
+                       std::error_code& ec,
+                       std::streampos offset = -1,
+                       std::size_t count     = 0) noexcept override;
+
+  buffer_type recv(std::size_t count, int flags = 0) override;
+  buffer_type recv(std::size_t count, std::error_code& ec, int flags = 0) noexcept override;
+
+  buffer_type recvfrom(std::size_t count, address_type& src, int flags = 0) override;
+  buffer_type recvfrom(std::size_t count, address_type& src, std::error_code& ec, int flags = 0) noexcept override;
+
+  // Swap support
+  void swap(TCPSocket& other) noexcept;
+  friend void swap(TCPSocket& lhs, TCPSocket& rhs) noexcept;
+};
+```
+
+#### Additional Member Functions
+
+1. **Default Constructor:**
+
+```cpp
+TCPSocket();
+```
+
+- **Effects:**
+  - Creates a new, unconnected and unbound TCP socket.
+
+2. **Constructor (from address):**
+
+```cpp
+explicit TCPSocket(const address_type& address);
+```
+
+- **Effects:**
+  - Creates a TCP socket and associates it with the specified `address`.
+- **Notes:**
+  - This constructor sets the socket's local endpoint, but it does **not** perform the `bind` operation. `bind` must be called separately to explicitly bind the socket to the address.
+- **Exceptions:**
+  - Throws `socket_error` if the socket creation or binding fails (e.g., invalid address).
+
+3. **Constructor (from native handle):**
+
+```cpp
+explicit TCPSocket(native_handle_type handle,
+                   const address_type& address = address_type());
+```
+
+- **Effects:**
+  - Takes ownership of an existing socket handle.
+  - The socket's family, type, and protocol are auto-detected from the handle unless overridden by the `address` argument.
+- **Notes:**
+  - This allows the socket to be used with the appropriate family, type and protocol without duplicating the handle. Useful when a socket is created outside this class (e.g., using `accept()`).
+- **Exceptions:**
+  - Throws `socket_error` if the handle is invalid or not a TCP socket.
+- **Complexity:** Constant.
+
+4. **Copy Constructor:**
+
+```cpp
+TCPSocket(const TCPSocket& other);
+```
+
+- **Effects:**
+  - Creates a copy of the other `TCPSocket` object. This duplicates the socket handle and copies the internal state (e.g., timeout settings).
+- **Exceptions:**
+  - Throws `socket_error` if copying the socket fails (e.g., invalid handle).
+
+5. **Copy Assignment Operator:**
+
+```cpp
+TCPSocket& operator=(const TCPSocket& other);
+```
+
+- **Effects:**
+  - Copies the state of another `TCPSocket` into this one. This duplicates the socket handle and copies the internal state (e.g., timeout settings).
+- **Exceptions:**
+  - Throws `socket_error` if copying the socket fails (e.g., invalid handle).
+
+6. **Move Constructor:**
+
+```cpp
+TCPSocket(TCPSocket&& other) noexcept;
+```
+
+- **Effects:**
+  - Transfers ownership of the socket handle and associated resources from `other` to this object.
+  - After the move `other` will be in a valid but unspecified state.
+- **Complexity:** Constant.
+
+7. **Move Assignment Operator:**
+
+```cpp
+TCPSocket& operator=(TCPSocket&& other) noexcept;
+```
+
+- **Effects:**
+  - Transfers ownership of the socket handle and associated resources from `other` to this object, invalidating `other`.
+  - After the move `other` will be in a valid but unspecified state.
+- **Complexity:** Constant.
+
+8. **Destructor:**
+
+```cpp
+~TCPSocket() override;
+```
+
+- **Effects:**
+  - Closes the socket and releases any allocated resources. This also invalidates the socket handle.
+- **Complexity:** Constant
+
+#### Swap Function
+
+To allow efficient swapping of `TCPSocket` objects (including during exception handling or container operations like `std::swap`):
+
+```cpp
+void swap(TCPSocket& other) noexcept;
+friend void swap(TCPSocket& lhs, TCPSocket& rhs) noexcept;
+```
+
+- **Effects:**
+  - Swaps the internal state (including socket handle and settings) of `*this` and `other`. After the swap, the socket state of `lhs` and `rhs` is exchanged.
+- **Complexity:** Constant
+
+---
+
 ### `SocketEvent`
 
 The `SocketEvent` enumeration represents the types of I/O events that can occur on a socket. It is defined as a bitmask type so that multiple event flags may be combined.
