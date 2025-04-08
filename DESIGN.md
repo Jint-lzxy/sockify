@@ -80,153 +80,149 @@ As you program with Sockify, keep in mind the following rules to help you get be
             (Any sockify::Socket can be wrapped by these stream classes)
 ```
 
-## Interface Reference (Helpers)
+## Interface Reference
 
 > [!CAUTION]
 > For simplicity and brevity, the `sockify::` namespace is omitted from all definitions in the sections that follow. Unless otherwise specified, assume that all names belong to this namespace. Additionally, this document is intended as a design reference and is **NOT** a comprehensive manual. For the complete API reference, please refer to the generated Doxygen documentation.
 
+### `AddressFamily`
+
+The `AddressFamily` scoped enumeration represents the family (or domain) of a network address. It is used to control the interpretation of socket and address types when performing network operations.
+
+#### Synopsis
+
+```cpp
+enum class AddressFamily {
+  Unknown = /* unspecified */,
+  IPv4    = /* unspecified */,
+  IPv6    = /* unspecified */,
+  Unix    = /* unspecified */
+  ...
+};
+```
+
+#### Constants
+
+| Enumerator | Meaning                                                             |
+| ---------- | ------------------------------------------------------------------- |
+| `Unknown`  | The address family is unknown or uninitialized. May indicate error. |
+| `IPv4`     | Internet Protocol version 4 address (corresponds to `AF_INET`).     |
+| `IPv6`     | Internet Protocol version 6 address (corresponds to `AF_INET6`).    |
+| `Unix`     | Unix domain socket address (corresponds to `AF_UNIX`).              |
+
+#### Notes
+
+The set of enumerators may be extended in future versions to include additional address families (e.g., Bluetooth). Existing enumerators are stable and portable across supported platforms.
+
+---
+
 ### `Address`
 
-The `Address` class encapsulates a complete network address. Internally, it stores a raw network address in a `sockaddr_storage` (designated as its `value_type`), along with a cached port number and protocol indicator (IPv4 or IPv6). Other address details (such as IPv6 flow information) are accessible by directly examining the raw structure via the `value()` member function. The textual representation of the address shall be suitable for conversion and display as a `std::wstring`.
+The `Address` class encapsulates a protocol-agnostic network address. It serves as a common base for address families such as IPv4, IPv6 and Unix domain sockets. Concrete derived classes implement address-specific behavior while exposing a unified interface for networking operations. Internally, all address data is stored using `sockaddr_storage`, aliased as its `value_type`. This class is designed to be extended and not instantiated directly.
 
 #### Member Types
 
-| Name              | Explanation                                                                                          |
-| ----------------- | ---------------------------------------------------------------------------------------------------- |
-| `value_type`      | An alias for the raw network address type. (always `sockaddr_storage`)                               |
-| `reference`       | `value_type&`                                                                                        |
-| `const_reference` | `const value_type&`                                                                                  |
-| `pointer`         | `value_type*`                                                                                        |
-| `const_pointer`   | `const value_type*`                                                                                  |
-| `string_type`     | An alias for the type used to hold textual representations of the IP address. (always `std::string`) |
-| `Protocol`        | A scoped enumeration type that distinguishes between IPv4 and IPv6 addresses.                        |
+| Name                  | Explanation                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------- |
+| `value_type`          | An alias for the raw network address type. (always `sockaddr_storage`)                            |
+| `reference`           | `value_type&`                                                                                     |
+| `const_reference`     | `const value_type&`                                                                               |
+| `pointer`             | `value_type*`                                                                                     |
+| `const_pointer`       | `const value_type*`                                                                               |
+| `string_type`         | An alias for the type used to hold textual representations of the address. (always `std::string`) |
+| `address_family_type` | An alias for the scoped enumeration `AddressFamily`.                                              |
 
 #### Data Members
 
-| Name       | Type         | Explanation                                                                |
-| ---------- | ------------ | -------------------------------------------------------------------------- |
-| `address`  | `value_type` | The raw network address in a system-defined format.                        |
-| `port`     | `uint16_t`   | The port number associated with the address.                               |
-| `protocol` | `Protocol`   | The protocol of the address (either `Protocol::IPv4` or `Protocol::IPv6`). |
+| Name      | Type                  | Explanation                                         |
+| --------- | --------------------- | --------------------------------------------------- |
+| `address` | `value_type`          | The raw network address in a system-defined format. |
+| `family`  | `address_family_type` | The family (or domain) of the address.              |
 
 #### Member Functions
 
-1. **Default Constructor**
+1. **Constructors (Protected)**
 
 ```cpp
 Address() noexcept;
 ```
 
 - **Effects:**
-  - Constructs an `Address` with a default-initialized `sockaddr_storage`. The values of `port` and `protocol` are undefined.
-  - An internal validity flag is set to indicate the object is empty.
+  - Constructs an empty `Address` object. The internal address and address family are invalidated. `has_value()` returns `false`.
 - **Complexity:** Constant.
 
-2. **Constructor (from raw address)**
-
 ```cpp
-Address(const_pointer addr) noexcept;
+Address(const value_type& address) noexcept;
 ```
 
 - **Effects:**
-  - Constructs an `Address` object by copying the data from the memory pointed to by `addr` into the internal `address` member. The constructor then deduces the port number and protocol from the contents of the raw address structure.
-  - Specifically, if `addr->ss_family` is `AF_INET`, the constructor extracts the port from the corresponding `sockaddr_in` structure and sets the protocol to `Protocol::IPv4`; if `addr->ss_family` is `AF_INET6`, it extracts the port from the corresponding `sockaddr_in6` structure and sets the protocol to `Protocol::IPv6`.
-- **Preconditions:**
-  - `addr` shall not be a null pointer.
-  - `addr` must point to a valid socket address (either IPv4 or IPv6).
+  - Constructs an `Address` object using the specified raw address `address`.
+  - The address family is automatically deduced from `storage.ss_family` and stored in the cached `family` member.
+  - If the family cannot be recognized, the result is an empty address.
+- **Notes:**
+  - This constructor is intended solely for use by derived classes to initialize the base class state.
+  - The deduced address family must match one of the recognized `AddressFamily` values.
 - **Complexity:** Constant.
 
-3. **Constructor (from string representation and port number)**
-
-```cpp
-Address(std::string_view addr_str, uint16_t port);
-```
-
-- **Effects:**
-  - Parses `addr_str` (e.g., `"127.0.0.1"` or `"::1"`) to initialize `address` and deduce `protocol`; caches the given port in `port`.
-  - If the string cannot be parsed into a valid address, an exception is thrown (see _Exceptions_).
-- **Preconditions:**
-  - `addr_str` must not be empty.
-- **Exceptions:**
-  - `std::invalid_argument`: Thrown if the string cannot be parsed into a valid IP address.
-  - `std::out_of_range`: Thrown if the port number is outside the valid range for a port (0–65535).
-- **Complexity:** Linear in the length of `addr_str`.
-
-4. **Constructor (from string representation)**
-
-```cpp
-explicit Address(std::string_view str);
-```
-
-- **Effects:**
-  - Constructs an `Address` object from the provided string `str`. This string must represent the address in the exact format returned by the `to_string()` member function, which is:
-    - For IPv4 addresses: `"ip:port"` (e.g., `"192.168.0.1:8080"`).
-    - For IPv6 addresses: `"[ip]:port"` (e.g., `"[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:8080"`).
-  - The constructor will parse the string, extract the IP address and port, and initialize the internal `sockaddr_storage` object accordingly.
-  - If the string cannot be parsed or doesn't match the expected format, an exception is thrown (see _Exceptions_).
-- **Preconditions:**
-  - `str` must not be empty.
-- **Exceptions:**
-  - `std::invalid_argument`: Thrown if the string cannot be parsed as a valid IP address in the correct format, or if the port number contains non-numeric characters (e.g., letters or special symbols).
-  - `std::out_of_range`: Thrown if the parsed port number is outside the valid range (0–65535).
-- **Complexity:** Linear in the length of `str`.
-
-5. **Copy Constructor**
+2. **Copy Constructor (Protected)**
 
 ```cpp
 Address(const Address& other) noexcept;
 ```
 
 - **Effects:**
-  - Constructs an `Address` as a copy of other, copying `address`, `port`, and `protocol`.
+  - Constructs an `Address` object as a copy of `other`, copying the internal raw storage and cached address family.
 - **Complexity:** Constant.
 
-6. **Move Constructor**
-
-```cpp
-Address(Address&& other) noexcept;
-```
-
-- **Effects:**
-  - Constructs an `Address` by moving the members of `other`.
-  - After the move `other` will be in a valid but unspecified state.
-- **Complexity:** Constant.
-
-7. **Copy Assignment Operator**
+3. **Copy Assignment Operator (Protected)**
 
 ```cpp
 Address& operator=(const Address& other) noexcept;
 ```
 
 - **Effects:**
-  - Copies `other` into `this`, updating `address`, `port` and `protocol`.
+  - Assigns other to `*this`, copying the internal address and address family.
+- **Returns:**
+  - `*this`.
 - **Complexity:** Constant.
 
-8. **Move Assignment Operator**
+4. **Move Constructor (Protected)**
+
+```cpp
+Address(Address&& other) noexcept;
+```
+
+- **Effects:**
+  - Constructs an `Address` object by moving the contents of `other`. After the move, `other` is in a valid but unspecified state.
+- **Complexity:** Constant.
+
+5. **Move Assignment Operator (Protected)**
 
 ```cpp
 Address& operator=(Address&& other) noexcept;
 ```
 
 - **Effects:**
-  - Moves the members of `other` into `this`.
-  - After the move `other` will be in a valid but unspecified state.
+  - Moves the internal state of `other` into `*this`. After the move, `other` is in a valid but unspecified state.
+- **Returns:**
+  - `*this`.
 - **Complexity:** Constant.
 
-9. **Destructor**
+6. **Destructor**
 
 ```cpp
-~Address();
+virtual ~Address();
 ```
 
 - **Effects:**
-  - Destroys the `Address` object.
+  - Destroys the `Address` object. The destructor is virtual to ensure proper cleanup of derived classes.
   - The destructor is trivial if `sockaddr_storage` is trivially destructible.
+- **Complexity:** Constant.
 
-10. **Accessors**
+7. **Accessors**
 
 > [!WARNING]
-> Calling any accessors on an `Address` object while it is in its empty state (e.g., after `reset()` with no arguments) results in undefined behavior.
+> Calling any accessors on an `Address` (or any of its derived classes) object while it is in its empty state (e.g., after `reset()` with no arguments) results in undefined behavior.
 
 ```cpp
 const_pointer value() const noexcept;
@@ -237,45 +233,62 @@ const_pointer value() const noexcept;
 - **Complexity:** Constant.
 
 ```cpp
-string_type ip() const;
+address_family_type family() const noexcept;
 ```
 
 - **Returns:**
-  - A string representing the IP address (e.g., `"127.0.0.1"` or `"::1"`), derived from the raw `address`.
-- **Complexity:** Implementation-specific.
-
-```cpp
-uint16_t port() const noexcept;
-```
-
-- **Returns:**
-  - The cached port number.
+  - The address family of the current address (e.g., `AddressFamily::IPv4`).
 - **Complexity:** Constant.
 
 ```cpp
-Protocol protocol() const noexcept;
+virtual socklen_t size() const noexcept = 0;
 ```
 
 - **Returns:**
-  - The cached protocol (either `Protocol::IPv4` or `Protocol::IPv6`).
+  - The number of bytes actually occupied by the stored socket address structure.
 - **Complexity:** Constant.
 
 ```cpp
-string_type to_string() const;
+virtual string_type to_string() const = 0;
 ```
 
 - **Returns:**
-  - A string representation of the address in the format `"ip:port"`. For IPv6 addresses, the IP is enclosed in square brackets (e.g., `"[::1]:80"`).
+  - A textual representation of the address. The textual representation of the address shall be suitable for conversion and display as a `std::wstring`.
 - **Complexity:** Implementation-specific.
 
-11. **Comparison Operators**
+8. **Observers**
+
+```cpp
+explicit operator bool() const noexcept;
+bool has_value() const noexcept;
+```
+
+- **Returns:**
+  - `true` if the `Address` object contains a valid (non-empty) address; `false` if it is in the empty state.
+
+```cpp
+void reset() noexcept;
+```
+
+- **Effects:**
+  - Resets the `Address` object to its empty state. After calling `reset()`, the internal `address` is undefined.
+
+```cpp
+value_type release() noexcept;
+```
+
+- **Effects:**
+  - Releases ownership of the internal raw network address, returning the stored `address`. After this call, the `Address` object is reset to its empty state.
+- **Returns:** The released raw address data.
+
+9. **Comparison Operators**
 
 ```cpp
 bool operator==(const Address& other) const noexcept;
 ```
 
 - **Returns:**
-  - `true` if the raw address data, cached port, and cached protocol are identical; otherwise, `false`.
+  - `true` if both `Address` objects have the same address family and identical contents over `size()` bytes of their internal storage; otherwise, `false`.
 - **Notes:**
   - Empty `Address` objects compare equal to each other, but not to any non-empty `Address` object.
 - **Complexity:** Constant.
@@ -296,51 +309,37 @@ friend bool operator>=(const Address& lhs, const Address& rhs);
 ```
 
 - **Effects:**
-  - Performs a lexicographical comparison of `lhs.to_string()` and `rhs.to_string()` as if by `std::lexicographical_compare`.
+  - Establishes a strict total order over all `Address` objects by applying the following rules:
+    - If the two addresses have the same family, the result is delegated to `compare()`.
+    - Otherwise, the result is determined by comparing their `family` enumerator values.
 - **Returns:**
-  - `true` or `false` depending on the result of the string comparison.
+  - `true` or `false` based on the result of the comparison.
 - **Notes:**
   - Empty `Address` objects are always ordered before any non-empty `Address` objects.
-- **Complexity:** Linear in the length of the string representations of `lhs` and `rhs`.
+  - This ordering ensures that every pair of valid `Address` objects is comparable, and the result is stable and deterministic.
+  - Derived classes may override the comparison mechanism by redefining the `compare()` function (see below) if they require additional ordering logic.
+- **Complexity:** Linear in the number of bytes compared.
 
-12. **Observers**
+10. **Comparison Operators (Protected)**
 
 ```cpp
-explicit operator bool() const noexcept;
-bool has_value() const noexcept;
+virtual int compare(const Address& other) const noexcept;
 ```
 
+- **Effects:**
+  - Compares `*this` with `other`, assuming both objects have the same address family.
 - **Returns:**
-  - `true` if the `Address` object contains a valid (non-empty) address; `false` if it is in the empty state.
+  - A signed result with the following meaning:
+    - Negative if `*this < other`,
+    - Zero if `*this == other`,
+    - Positive if `*this > other`.
+- **Complexity:** Linear in the number of bytes compared.
+- **Notes:**
+  - The default implementation compares `size()` first, then performs a byte-wise comparison of `value()` over that size.
+  - This function must not be called unless `family() == other.family()`.
+  - Derived classes may override this function to provide additional semantic ordering.
 
-```cpp
-void reset() noexcept;
-```
-
-- **Effects:**
-  - Resets the `Address` object to its empty state. After calling `reset()`, the internal `address` is undefined.
-
-```cpp
-void reset(const_pointer addr) noexcept;
-```
-
-- **Effects:**
-  - Resets the `Address` object using the data pointed to by `addr`. This replaces the internal `address` with the raw socket address structure pointed to by `addr`.
-  - This is semantically equivalent to assigning from a temporary `Address` constructed with `Address(addr)`, but may be more efficient.
-- **Preconditions:**
-  - `addr` shall not be a null pointer.
-  - `addr` must point to a valid socket address (either IPv4 or IPv6).
-- **Complexity:** Constant.
-
-```cpp
-value_type release() noexcept;
-```
-
-- **Effects:**
-  - Releases ownership of the internal raw network address, returning the stored `address`. After this call, the `Address` object is reset to its empty state.
-- **Returns:** The released raw address data.
-
-13. **Non-Member Functions**
+11. **Non-Member Functions**
 
 ```cpp
 friend std::ostream& operator<<(std::ostream& strm, const Address& addr);
@@ -351,7 +350,21 @@ friend std::ostream& operator<<(std::ostream& strm, const Address& addr);
 - **Returns:**
   - A reference to `strm`.
 
-14. **Swap Support**
+12. **Swap Support (Protected)**
+
+```cpp
+virtual void do_swap(Address& other) noexcept = 0;
+```
+
+- **Effects:**
+  - Performs swapping of derived-class–specific internal state.
+  - Must be overridden by each concrete derived class to ensure that all additional members are exchanged correctly.
+- **Complexity:** Constant.
+
+13. **Swap Support**
+
+> [!CAUTION]
+> When invoking `swap(Address& other)` or the non-member `friend void swap(Address& lhs, Address& rhs) noexcept`, it is the caller's responsibility to ensure that both `Address` objects are of the same dynamic type. **If the objects have mismatched dynamic types, the behavior is undefined**. This precondition is enforced (in debug builds) via an assertion rather than by throwing an exception, in order to maintain the `noexcept` guarantee of the swap operation. **DO NOT OVERLOOK THIS REQUIREMENT**, as swapping objects of different types may lead to data inconsistency or resource mismanagement.
 
 ```cpp
 void swap(Address& other) noexcept;
@@ -359,7 +372,10 @@ friend void swap(Address& lhs, Address& rhs) noexcept;
 ```
 
 - **Effects:**
-  - Swaps the internal state of two `Address` objects, including cached `protocol` and `port`.
+  - Swaps the internal state of the base `Address` subobject (including `address` and `family`) as well as any additional state managed by the most-derived class.
+  - Calls the protected pure virtual function `do_swap(Address& other)` to swap the derived class's additional state.
+- **Preconditions:**
+  - Both `*this` and `other` must be of the same dynamic type. Otherwise, the behavior is undefined.
 - **Complexity:** Constant.
 
 ---
@@ -373,7 +389,7 @@ The `socket_errc` scoped enumeration is used to define error conditions for vari
 The scoped enumeration `socket_errc` defines the following constant values representing socket-related error conditions:
 
 ```cpp
-enum class socket_errc : int {
+enum class socket_errc {
   // Standard-compatible values
   success = 0,            // No error
   address_in_use,         // Address already in use
@@ -930,7 +946,7 @@ friend void swap(Socket& lhs, Socket& rhs) noexcept;
 
 The `TCPSocket` class encapsulates a TCP socket, providing a high-level interface for managing and interacting with a network socket. It supports the standard operations needed for creating, binding, connecting, reading, writing and closing a TCP socket, while ensuring proper resource management and error handling.
 
-The `TCPSocket` class is marked as final because it already provides a complete and optimized implementation for managing TCP socket operations
+The `TCPSocket` class is marked as `final` because it already provides a complete and optimized implementation for managing TCP socket operations.
 
 #### Synopsis
 
