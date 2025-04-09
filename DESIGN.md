@@ -1160,6 +1160,21 @@ virtual void setsockopt(int level, int optname, int value, std::error_code& ec) 
 - **Complexity:** Constant
 
 ```cpp
+virtual void setsockopt(int level, int optname, const buffer_type& option_value);
+virtual void setsockopt(int level, int optname, const buffer_type& option_value, std::error_code& ec) noexcept;
+```
+
+- **Effects:**
+  - Sets the value of a socket option, which is stored as raw binary data in the `buffer_type` class.
+- **Parameters:**
+  - `level`: Protocol level (e.g., `SOL_SOCKET`).
+  - `optname`: Option name.
+  - `option_value`: A buffer containing the raw binary data for the option.
+- **Exceptions:**
+  - `socket_error` if the option is unsupported or the socket is invalid.
+- **Complexity:** Constant.
+
+```cpp
 virtual int getsockopt(int level, int optname) const;
 virtual int getsockopt(int level, int optname, std::error_code& ec) const noexcept;
 ```
@@ -1169,6 +1184,20 @@ virtual int getsockopt(int level, int optname, std::error_code& ec) const noexce
 - **Exceptions:**
   - `socket_error` on error
 - **Complexity:** Constant
+
+```cpp
+virtual buffer_type getsockopt(int level, int optname, std::size_t buflen) const;
+virtual buffer_type getsockopt(int level, int optname, std::size_t buflen, std::error_code& ec) const noexcept;
+```
+
+- **Returns:** The value of a socket option, which may involve returning raw binary data in a buffer.
+- **Parameters:**
+  - `level`: Protocol level (e.g., `SOL_SOCKET`).
+  - `optname`: Option name.
+  - `buflen`: The maximum length of the buffer to receive the option's value.
+- **Exceptions:**
+  - `socket_error` if the option is unsupported or the socket is invalid.
+- **Complexity:** Constant.
 
 ```cpp
 virtual void setinheritable(bool inheritable);
