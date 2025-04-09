@@ -18,7 +18,7 @@ As you program with Sockify, keep in mind the following rules to help you get be
 
 - Use modern C++ features such as `std::unique_ptr` and `std::shared_ptr` to manage resources. Use RAII patterns wherever feasible so that resources are cleaned up properly.
 - Sockify is designed to be low overhead by default. SSL/TLS and event-driven I/O are add-on features that only need to be enabled if necessary. If your app doesn't need SSL, for instance, simply don't enable it at compile time to keep the library lean and fast.
-- Sockify does **not** implement thread-safe sockets by default. This is to avoid the performance overhead of locking mechanisms. If your application requires concurrency, use message-passing, worker threads and/or external synchronization mechanisms. For multi-threaded applications, ensure that each socket instance is only used within a single thread unless explicitly designed otherwise.
+- Sockify does **not** implement thread-safe sockets by default. This is to avoid the performance overhead of locking mechanisms. If your application requires concurrency, use message-passing, worker threads and/or external synchronization mechanisms. For multi-threaded applications, ensure that each socket instance is only used within a single thread unless explicitly stated otherwise.
 - Sockify supports `std::error_code` for non-fatal errors, allowing you to handle failures without relying on exceptions. If you prefer not to use exception handling, simply call the overloads that accept a `std::error_code&` parameter.
 - Sockify abstracts platform-specific details, but do remember to bear in mind platform-specific optimizations or limitations. For instance, Windows does its own socket management differently from Unix-based systems.
 
@@ -82,8 +82,11 @@ As you program with Sockify, keep in mind the following rules to help you get be
 
 ## Interface Reference
 
-> [!CAUTION]
+> [!IMPORTANT]
 > For simplicity and brevity, the `sockify::` namespace is omitted from all definitions in the sections that follow. Unless otherwise specified, assume that all names belong to this namespace. Additionally, this document is intended as a design reference and is **NOT** a comprehensive manual. For the complete API reference, please refer to the generated Doxygen documentation.
+
+> [!CAUTION]
+> When invoking `swap(Type& other) noexcept` or the non-member `friend void swap(Type& lhs, Type& rhs) noexcept` in this library, it is the caller's responsibility to ensure that both objects are of the same dynamic type. **If the objects have mismatched dynamic types, the behavior is undefined.** This precondition is enforced (in debug builds) via an assertion rather than by throwing an exception, in order to maintain the `noexcept` guarantee of the swap operation. **DO NOT OVERLOOK THIS REQUIREMENT**, as swapping objects of different types may result in data corruption, resource mismanagement or undefined behavior.
 
 ### `AddressFamily`
 
@@ -152,7 +155,7 @@ Address() noexcept;
 - **Complexity:** Constant.
 
 ```cpp
-Address(const value_type& address) noexcept;
+Address(const_reference address) noexcept;
 ```
 
 - **Effects:**
@@ -363,9 +366,6 @@ virtual void do_swap(Address& other) noexcept = 0;
 
 13. **Swap Support**
 
-> [!CAUTION]
-> When invoking `swap(Address& other)` or the non-member `friend void swap(Address& lhs, Address& rhs) noexcept`, it is the caller's responsibility to ensure that both `Address` objects are of the same dynamic type. **If the objects have mismatched dynamic types, the behavior is undefined**. This precondition is enforced (in debug builds) via an assertion rather than by throwing an exception, in order to maintain the `noexcept` guarantee of the swap operation. **DO NOT OVERLOOK THIS REQUIREMENT**, as swapping objects of different types may lead to data inconsistency or resource mismanagement.
-
 ```cpp
 void swap(Address& other) noexcept;
 friend void swap(Address& lhs, Address& rhs) noexcept;
@@ -376,6 +376,410 @@ friend void swap(Address& lhs, Address& rhs) noexcept;
   - Calls the protected pure virtual function `do_swap(Address& other)` to swap the derived class's additional state.
 - **Preconditions:**
   - Both `*this` and `other` must be of the same dynamic type. Otherwise, the behavior is undefined.
+- **Complexity:** Constant.
+
+---
+
+### `IPAddress`
+
+The `IPAddress` class represents a network address specifically for IP-based addresses, such as IPv4 and IPv6. It extends the `Address` base class to handle the specific behaviors related to IP addresses, including parsing, formatting and managing the IP address itself, as well as providing functionality for associated ports.
+
+This class can be instantiated with either an IP address string (with or without a port) or directly from the raw address data. It provides the necessary functions to extract and manipulate the IP address and port, with support for IPv4 and IPv6 address families.
+
+#### Synopsis
+
+```cpp
+class IPAddress final : public Address {
+public:
+  // Constructors
+  IPAddress() noexcept;
+  IPAddress(const_reference address) noexcept;
+  explicit IPAddress(std::string_view ip_address);
+  IPAddress(std::string_view ip_address, uint16_t port);
+
+  // Copy Constructor and Copy Assignment Operator
+  IPAddress(const IPAddress& other) noexcept;
+  IPAddress& operator=(const IPAddress& other) noexcept;
+
+  // Move Constructor and Move Assignment Operator
+  IPAddress(IPAddress&& other) noexcept;
+  IPAddress& operator=(IPAddress&& other) noexcept;
+
+  // Destructor
+  ~IPAddress() override;
+
+  // Address/Port Accessors
+  string_type ip() const;
+  uint16_t port() const noexcept;
+
+  // Override virtual functions
+  socklen_t size() const noexcept override;
+  string_type to_string() const override;
+
+protected:
+  void do_swap(Address& other) noexcept override;
+
+private:
+  uint16_t port; // Cached port number
+};
+```
+
+#### Data Members
+
+| Name   | Type       | Explanation                                            |
+| ------ | ---------- | ------------------------------------------------------ |
+| `port` | `uint16_t` | The cached port number associated with the IP address. |
+
+#### Member Functions
+
+1. **Default Constructor**
+
+```cpp
+IPAddress() noexcept;
+```
+
+- **Effects:**
+  - Constructs an empty `IPAddress` object.
+- **Complexity:** Constant.
+
+2. **Constructor (from raw address)**
+
+```cpp
+IPAddress(const_reference address) noexcept;
+```
+
+- **Effects:**
+  - Constructs an `IPAddress` object by copying the data from `addr` into the internal `address` member. The constructor then deduces the port number and address family from the contents of the raw address structure.
+  - Specifically, if `addr->ss_family` is `AF_INET`, the constructor extracts the port from the corresponding `sockaddr_in` structure and sets the address family to `AddressFamily::IPv4`; if `addr->ss_family` is `AF_INET6`, it extracts the port from the corresponding `sockaddr_in6` structure and sets the protocol to `AddressFamily::IPv6`.
+  - If the family cannot be recognized, the result is an empty address.
+- **Preconditions:**
+  - `addr` shall not be a null pointer.
+  - `addr` must point to a valid socket address.
+- **Complexity:** Constant.
+
+3. **Constructor (from string representation and port number)**
+
+```cpp
+IPAddress(std::string_view ip_address, uint16_t port);
+```
+
+- **Effects:**
+  - If `ip_address` represents an IP address in string form (e.g., `"127.0.0.1"` or `"::1"`), it will initialize the object with that address.
+  - If `ip_address` is a hostname (e.g., `"localhost"`), it will resolve the hostname to an IP address using DNS and initialize the object with the resolved IP.
+  - The port number is parsed from `port` and associated with the address.
+  - If the string cannot be parsed into a valid address or the DNS resolution fails, an exception is thrown (see _Exceptions_).
+- **Preconditions:**
+  - `ip_address` must not be empty.
+- **Exceptions:**
+  - `std::invalid_argument`: Thrown if the string cannot be parsed into a valid IP address or if the hostname cannot be resolved.
+  - `std::out_of_range`: Thrown if the port number is outside the valid range for a port (0–65535).
+- **Notes:**
+  - If a hostname is used to specify the IPv4/IPv6 address, the program may exhibit nondeterministic behavior. This is due to how the operating system or the library resolves the hostname into an IP address, which may vary based on DNS resolution results and host configurations.
+  - For deterministic behavior, it is recommended to use a numeric IP address instead of a hostname.
+- **Complexity:** Linear in the length of `ip_address`.
+
+4. **Constructor (from string representation)**
+
+```cpp
+explicit IPAddress(std::string_view ip_address);
+```
+
+- **Effects:**
+  - Constructs an `Address` object from the provided string `ip_address`. This string must represent the address in the exact format returned by the `to_string()` member function:
+    - For IPv4 addresses: `"ip:port"` (e.g., `"192.168.0.1:8080"`).
+    - For IPv6 addresses: `"[ip]:port"` (e.g., `"[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:8080"`).
+  - If the string represents an IP address (e.g., `"127.0.0.1"` or `"::1"`), the constructor will parse the string, extract the IP address and port, and initialize the internal `sockaddr_storage` object accordingly.
+  - If the string represents a hostname (e.g., `"localhost"`), the constructor will resolve the hostname using DNS and then initialize the object with the resolved IP address (using the first address returned from the DNS resolution).
+  - If the string cannot be parsed into a valid IP address or the hostname cannot be resolved, an exception is thrown (see _Exceptions_).
+- **Preconditions:**
+  - `ip_address` must not be empty.
+- **Exceptions:**
+  - `std::invalid_argument`: Thrown if the string cannot be parsed as a valid IP address or if the hostname cannot be resolved.
+  - `std::out_of_range`: Thrown if the parsed port number is outside the valid range for a port (0–65535).
+- **Notes:**
+  - If a hostname is used in the `ip_address`, the behavior may be nondeterministic. This is due to how the operating system or library resolves the hostname into an IP address, which may vary based on DNS resolution results and host configurations.
+  - For deterministic behavior, it is recommended to use a numeric IP address instead of a hostname.
+- **Complexity:** Linear in the length of `ip_address`.
+
+5. **Copy Constructor**
+
+```cpp
+IPAddress(const IPAddress& other) noexcept;
+```
+
+- **Effects:**
+  - Constructs an `IPAddress` object as a copy of `other`, copying the internal address and port values.
+- **Complexity:** Constant.
+
+6. **Copy Assignment Operator**
+
+```cpp
+IPAddress& operator=(const IPAddress& other) noexcept;
+```
+
+- **Effects:**
+  - Assigns the values of `other` to `*this`, copying the internal address and port values.
+- **Returns:**
+  - `*this`.
+- **Complexity:** Constant.
+
+7. **Move Constructor**
+
+```cpp
+IPAddress(IPAddress&& other) noexcept;
+```
+
+- **Effects:**
+  - Constructs an `IPAddress` object by moving the contents of `other`.
+  - After the move `other` will be in a valid but unspecified state.
+- **Complexity:** Constant.
+
+8. **Move Assignment Operator**
+
+```cpp
+IPAddress& operator=(IPAddress&& other) noexcept;
+```
+
+- **Effects:**
+  - Moves the internal state of `other` into `*this`.
+  - After the move `other` will be in a valid but unspecified state.
+- **Returns:**
+  - `*this`.
+- **Complexity:** Constant.
+
+9. **Destructor**
+
+```cpp
+~IPAddress() override;
+```
+
+- **Effects:**
+  - Destroys the `IPAddress` object, releasing any resources.
+- **Complexity:** Constant.
+
+10. **Additional Accessors**
+
+> [!WARNING]
+> Calling any accessors on an `IPAddress` object while it is in its empty state (e.g., after `reset()` with no arguments) results in undefined behavior.
+
+```cpp
+string_type ip() const;
+```
+
+- **Returns:**
+  - A string representing the IP address (e.g., `"127.0.0.1"` or `"::1"`), derived from the raw `address`.
+- **Complexity:** Implementation-specific.
+
+```cpp
+uint16_t port() const noexcept;
+```
+
+- **Returns:**
+  - The port associated with the IP address, obtained directly from the cached `port` member.
+- **Complexity:** Constant.
+
+11. **Overridden Virtual Functions**
+
+```cpp
+socklen_t size() const noexcept override;
+```
+
+- **Returns:**
+  - The number of bytes occupied by the stored socket address structure.
+  - For IPv4, it returns `sizeof(sockaddr_in)`.
+  - For IPv6, it returns `sizeof(sockaddr_in6)`.
+- **Complexity:** Constant.
+
+```cpp
+string_type to_string() const override;
+```
+
+- **Returns:**
+  - A string representation of the address in the format `"ip:port"`. For IPv6 addresses, the IP is enclosed in square brackets (e.g., `"[::1]:80"`).
+- **Complexity:** Linear in the length of the address and port.
+
+```cpp
+void do_swap(Address& other) noexcept override;
+```
+
+- **Effects:**
+  - Swaps the internal state of the current object (`*this`) with the state of the `other` `IPAddress` object.
+- **Complexity:** Constant.
+
+---
+
+### `UnixDomainAddress`
+
+The `UnixDomainAddress` class encapsulates a Unix domain socket address, inheriting from the `Address` class. It provides a specific implementation for Unix domain socket addresses, which are used for inter-process communication on the same host. This class handles Unix domain socket file paths and provides a unified interface for networking operations.
+
+#### Synopsis
+
+```cpp
+class UnixDomainAddress final : public Address {
+public:
+  // Constructors
+  UnixDomainAddress() noexcept;
+  UnixDomainAddress(const_reference address) noexcept;
+  explicit UnixDomainAddress(std::filesystem::path path);
+
+  // Copy Constructor and Copy Assignment Operator
+  UnixDomainAddress(const UnixDomainAddress& other) noexcept;
+  UnixDomainAddress& operator=(const UnixDomainAddress& other) noexcept;
+
+  // Move Constructor and Move Assignment Operator
+  UnixDomainAddress(UnixDomainAddress&& other) noexcept;
+  UnixDomainAddress& operator=(UnixDomainAddress&& other) noexcept;
+
+  // Destructor
+  ~UnixDomainAddress() override;
+
+  // Path Accessor
+  std::filesystem::path path() const;
+
+  // Override virtual functions
+  socklen_t size() const noexcept override;
+  string_type to_string() const override;
+
+protected:
+  void do_swap(Address& other) noexcept override;
+
+private:
+  std::filesystem::path socket_path; // Cached socket file path
+};
+```
+
+#### Data Members
+
+| Name          | Type                    | Explanation                          |
+| ------------- | ----------------------- | ------------------------------------ |
+| `socket_path` | `std::filesystem::path` | Cached Unix domain socket file path. |
+
+#### Member Functions
+
+1. **Default Constructor**
+
+```cpp
+UnixDomainAddress() noexcept;
+```
+
+- **Effects:**
+  - Constructs an empty `UnixDomainAddress` object. `has_value()` returns `false`.
+- **Complexity:** Constant.
+
+2. **Constructor (from raw address)**
+
+```cpp
+UnixDomainAddress(const_reference address) noexcept;
+```
+
+- **Effects:**
+  - Constructs a `UnixDomainAddress` object using the specified raw address `address`.
+  - The address family is automatically deduced from `storage.ss_family` and stored in the cached family member.
+  - If the family cannot be recognized as Unix domain, the result is an empty address.
+- **Complexity:** Constant.
+
+3. **Constructor (from filesystem path)**
+
+```cpp
+explicit UnixDomainAddress(std::filesystem::path path);
+```
+
+- **Effects:**
+  - Constructs a `UnixDomainAddress` object from a Unix domain socket file path.
+  - The address is constructed using the path provided, and the family is set to `AddressFamily::Unix`.
+
+4. **Copy Constructor**
+
+```cpp
+UnixDomainAddress(const UnixDomainAddress& other) noexcept;
+```
+
+- **Effects:**
+  - Constructs a `UnixDomainAddress` object as a copy of `other`, copying the internal raw storage, socket path and cached address family.
+- **Complexity:** Constant.
+
+5. Copy Assignment Operator
+
+```cpp
+UnixDomainAddress& operator=(const UnixDomainAddress& other) noexcept;
+```
+
+- **Effects:**
+  - Assigns `other` to `*this`, copying the internal address, socket path and address family.
+- **Returns:**
+  - `*this`.
+- **Complexity:** Constant.
+
+6. **Move Constructor**
+
+```cpp
+UnixDomainAddress(UnixDomainAddress&& other) noexcept;
+```
+
+- **Effects:**
+  - Constructs a `UnixDomainAddress` object by moving the contents of `other`. After the move, `other` is in a valid but unspecified state.
+- **Complexity:** Constant.
+
+7. **Move Assignment Operator**
+
+```cpp
+UnixDomainAddress& operator=(UnixDomainAddress&& other) noexcept;
+```
+
+- **Effects:**
+  - Moves the internal state of `other` into `*this`. After the move, `other` is in a valid but unspecified state.
+- **Returns:**
+  - `*this`.
+- **Complexity:** Constant.
+
+8. **Destructor**
+
+```cpp
+~UnixDomainAddress() override;
+```
+
+- **Effects:**
+  - Destroys the `UnixDomainAddress` object. The destructor is trivial as no dynamic memory is explicitly managed.
+- **Complexity:** Constant.
+
+9. **Additional Accessors**
+
+> [!WARNING]
+> Calling any accessors on an `UnixDomainAddress` object while it is in its empty state (e.g., after `reset()` with no arguments) results in undefined behavior.
+
+```cpp
+std::filesystem::path path() const;
+```
+
+- **Returns:**
+  - The Unix domain socket path as a `std::filesystem::path`.
+- **Complexity:** Implementation-specific.
+
+10. **Overridden Virtual Functions**
+
+```cpp
+socklen_t size() const noexcept override;
+```
+
+- **Returns:**
+  - The number of bytes occupied by the stored socket address structure.
+  - Returns `sizeof(sockaddr_un)` on most platforms.
+- **Complexity:** Constant.
+
+```cpp
+string_type to_string() const override;
+```
+
+- **Returns:**
+  - An implementation-defined textual representation of the address, which is the Unix domain socket path.
+- **Complexity:** Implementation-specific.
+
+```cpp
+void do_swap(Address& other) noexcept override;
+```
+
+- **Effects:**
+  - Swaps the internal state of the current object (`*this`) with the state of the `other` `UnixDomainAddress` object.
 - **Complexity:** Constant.
 
 ---
@@ -928,7 +1332,25 @@ virtual native_handle_type native_handle() const noexcept;
 - **Returns:**
   - The platform-specific socket handle.
 
-3. **Swap Support**
+3. **Swap Support (Protected)**
+
+```cpp
+virtual void do_swap(Socket& other) noexcept = 0;
+```
+
+- **Effects:**
+  - Swaps the internal state of `*this` and `other`, specific to the most-derived type.
+  - This function is called by the base `swap(Socket&)` to allow derived classes to exchange any resources or members they own beyond the base class.
+  - This function must be overridden by all derived classes that support swapping.
+- **Preconditions:**
+  - `*this` and `other` must have the same dynamic type.
+  - It is the caller's responsibility (e.g., in `swap()`) to ensure this is true.
+- **Notes:**
+  - Typically, the implementation will perform a `static_cast` to the concrete type and `std::swap` any members unique to that type.
+  - This pattern avoids virtual slicing and ensures the base class can orchestrate full, polymorphism-aware swapping without knowing type-specific internals.
+- **Complexity:** Constant.
+
+4. **Swap Support**
 
 ```cpp
 void swap(Socket& other) noexcept;
@@ -936,8 +1358,12 @@ friend void swap(Socket& lhs, Socket& rhs) noexcept;
 ```
 
 - **Effects:**
-  - Swaps the internal state of two `Socket` objects. After the swap, the internal state of `lhs` and `rhs` is exchanged.
-  - Specifically, the derived class should implement this function to swap any internal resources.
+  - Exchanges the internal state of `*this` and `other`. After the call, each object has assumed the state previously held by the other.
+  - This function handles swapping of base class resources and delegates swapping of derived-class-specific state to the virtual `do_swap(Socket& other)` function.
+  - Derived classes must override `do_swap()` to implement the swap of their own internal members.
+  - The behavior is undefined unless `*this` and `other` are of the same dynamic type.
+- **Preconditions:**
+  - `typeid(*this) == typeid(other)`, i.e., both objects must have the same dynamic type.
 - **Complexity:** Constant.
 
 ---
@@ -1020,9 +1446,9 @@ public:
   buffer_type recvfrom(std::size_t count, address_type& src, int flags = 0) override;
   buffer_type recvfrom(std::size_t count, address_type& src, std::error_code& ec, int flags = 0) noexcept override;
 
+protected:
   // Swap support
-  void swap(TCPSocket& other) noexcept;
-  friend void swap(TCPSocket& lhs, TCPSocket& rhs) noexcept;
+  void do_swap(Socket& other) noexcept override;
 };
 ```
 
@@ -1125,13 +1551,16 @@ TCPSocket& operator=(TCPSocket&& other) noexcept;
 To allow efficient swapping of `TCPSocket` objects (including during exception handling or container operations like `std::swap`):
 
 ```cpp
-void swap(TCPSocket& other) noexcept;
-friend void swap(TCPSocket& lhs, TCPSocket& rhs) noexcept;
+void do_swap(Socket& other) noexcept override;
 ```
 
 - **Effects:**
-  - Swaps the internal state (including socket handle and settings) of `*this` and `other`. After the swap, the socket state of `lhs` and `rhs` is exchanged.
-- **Complexity:** Constant
+  - Swaps members specific to the `TCPSocket` class.
+  - Performs a `static_cast` of other to `TCPSocket&` and then exchanges any additional state.
+- **Preconditions:**
+  - `other` must be of dynamic type `TCPSocket`.
+  - This precondition is guaranteed by the base class `swap()` implementation and must not be checked redundantly here.
+- **Complexity:** Constant.
 
 ---
 
@@ -1263,7 +1692,18 @@ duration poll_timeout(duration timeout) noexcept;
   - The previous poll timeout value. If none was previously set, returns the default duration.
 - **Complexity:** Constant.
 
-4. **Swap Support**
+4. **Swap Support (Protected)**
+
+```cpp
+virtual void do_swap(EventLoop& other) noexcept = 0;
+```
+
+- **Effects:**
+  - Performs swapping of derived-class–specific internal state.
+  - Must be overridden by each concrete derived class to ensure that all additional members are exchanged correctly.
+- **Complexity:** Constant.
+
+5. **Swap Support**
 
 ```cpp
 void swap(EventLoop& other) noexcept;
@@ -1271,8 +1711,10 @@ friend void swap(EventLoop& lhs, EventLoop& rhs) noexcept;
 ```
 
 - **Effects:**
-  - Swaps the internal state of two `EventLoop` objects. After the swap, the internal state (such as event handlers, associated resources, etc.) of `lhs` and `rhs` is exchanged.
-  - Specifically, the derived class should implement this function to swap any internal resources such as event bases or associated handlers.
+  - Swaps the internal state of the two `EventLoop` objects (`lhs` and `rhs`). This includes swapping event handlers, associated resources (such as event bases, file descriptors, etc.), and other internal state specific to the derived class.
+  - The derived class must implement the `do_swap()` function to swap any resources specific to its type. This ensures the efficient swap of more complex internal states in derived classes. The base class `swap()` will delegate this operation to the derived class via the virtual `do_swap()` method.
+- **Preconditions:**
+  - Both `*this` and `other` must be of the same dynamic type. Otherwise, the behavior is undefined.
 - **Complexity:** Constant.
 
 #### Non-Member Function
@@ -1301,7 +1743,42 @@ The `AsyncEventLoop` class implements the asynchronous event loop using libevent
 #### Synopsis
 
 ```cpp
-class AsyncEventLoop : public EventLoop
+class AsyncEventLoop : public EventLoop {
+public:
+  // Member Types
+  using base_type    = event_base; // libevent's event base type.
+  using base_pointer = base_type*; // Pointer to libevent event base.
+
+public:
+  // Constructor & Destructor
+  AsyncEventLoop();           // Initializes and acquires a libevent event base.
+  ~AsyncEventLoop() override; // Releases libevent resources upon destruction.
+
+  // Move Semantics
+  AsyncEventLoop(AsyncEventLoop&& other) noexcept;            // Move constructor.
+  AsyncEventLoop& operator=(AsyncEventLoop&& other) noexcept; // Move assignment operator.
+
+  // Copy Semantics (Deleted)
+  AsyncEventLoop(const AsyncEventLoop&)            = delete; // Copy constructor is deleted.
+  AsyncEventLoop& operator=(const AsyncEventLoop&) = delete; // Copy assignment is deleted.
+
+  // Overridden Methods from EventLoop
+  bool register_socket(socket_type& socket, handler_type handler) override; // Register a socket with a handler.
+  bool unregister_socket(socket_type& socket) noexcept override;            // Unregister a socket.
+  void run() override;                                                      // Run the event loop.
+  void stop() noexcept override;                                            // Stop the event loop.
+
+  // Additional Methods for Timeout Control
+  duration poll_timeout() const noexcept override;           // Retrieve the current poll timeout.
+  duration poll_timeout(duration timeout) noexcept override; // Set a new poll timeout.
+
+protected:
+  // Swap Support for AsyncEventLoop
+  void do_swap(EventLoop& other) noexcept override; // Swap internal state of two AsyncEventLoop objects.
+
+private:
+  base_pointer base; // Pointer to the libevent event base object.
+};
 ```
 
 #### New Member Types
@@ -1366,7 +1843,7 @@ AsyncEventLoop& operator=(const AsyncEventLoop&) = delete;
 5. **Destructor**
 
 ```cpp
-virtual ~AsyncEventLoop() noexcept override;
+~AsyncEventLoop() override;
 ```
 
 - **Effects:**
@@ -1376,13 +1853,15 @@ virtual ~AsyncEventLoop() noexcept override;
 6. **Swap Support**
 
 ```cpp
-void swap(AsyncEventLoop& other) noexcept;
-friend void swap(AsyncEventLoop& lhs, AsyncEventLoop& rhs) noexcept;
+void do_swap(EventLoop& other) noexcept override;
 ```
 
 - **Effects:**
   - Swaps the internal state of two `AsyncEventLoop` objects. Specifically, it swaps the internal resources such as the underlying libevent base or other associated handlers between `lhs` and `rhs`.
   - After the swap, both `lhs` and `rhs` will be in a valid, usable state. The event loop base and other resources are exchanged.
+- **Preconditions:**
+  - `other` must be of dynamic type `AsyncEventLoop`.
+  - This precondition is guaranteed by the base class `swap()` implementation and must not be checked redundantly here.
 - **Complexity:** Constant.
 
 ---
@@ -1394,7 +1873,34 @@ The `SimpleEventLoop` class is a minimal, lightweight event loop with fewer depe
 #### Synopsis
 
 ```cpp
-class SimpleEventLoop : public EventLoop
+class SimpleEventLoop : public EventLoop {
+public:
+  // Constructor & Destructor
+  SimpleEventLoop() noexcept;  // Initializes a basic SimpleEventLoop with default settings.
+  ~SimpleEventLoop() override; // Cleans up any resources associated with the event loop.
+
+  // Move Semantics
+  SimpleEventLoop(SimpleEventLoop&& other) noexcept;            // Move constructor.
+  SimpleEventLoop& operator=(SimpleEventLoop&& other) noexcept; // Move assignment operator.
+
+  // Copy Semantics (Deleted)
+  SimpleEventLoop(const SimpleEventLoop&)            = delete; // Copy constructor is deleted.
+  SimpleEventLoop& operator=(const SimpleEventLoop&) = delete; // Copy assignment is deleted.
+
+  // Overridden Methods from EventLoop
+  bool register_socket(socket_type& socket, handler_type handler) override; // Registers a socket with a handler.
+  bool unregister_socket(socket_type& socket) noexcept override;            // Unregisters a socket from the event loop.
+  void run() override;           // Runs the event loop using basic system calls like select() or poll().
+  void stop() noexcept override; // Stops the event loop.
+
+  // Additional Methods for Timeout Control
+  duration poll_timeout() const noexcept override;           // Gets the current poll timeout.
+  duration poll_timeout(duration timeout) noexcept override; // Sets the new poll timeout.
+
+protected:
+  // Swap Support for SimpleEventLoop
+  void do_swap(EventLoop& other) noexcept override; // Swaps internal state of two SimpleEventLoop objects.
+};
 ```
 
 #### Additional Member Functions
@@ -1443,7 +1949,7 @@ SimpleEventLoop& operator=(const SimpleEventLoop&) = delete;
 5. **Destructor**
 
 ```cpp
-virtual ~SimpleEventLoop() noexcept override;
+~SimpleEventLoop() override;
 ```
 
 - **Effects:**
@@ -1453,11 +1959,13 @@ virtual ~SimpleEventLoop() noexcept override;
 6. **Swap Support**
 
 ```cpp
-void swap(SimpleEventLoop& other) noexcept;
-friend void swap(SimpleEventLoop& lhs, SimpleEventLoop& rhs) noexcept;
+void do_swap(EventLoop& other) noexcept override;
 ```
 
 - **Effects:**
   - Swaps the internal state of two `SimpleEventLoop` objects. Specifically, it swaps the internal resources such as the associated handlers between `lhs` and `rhs`.
   - After the swap, both `lhs` and `rhs` will be in a valid, usable state.
+- **Preconditions:**
+  - `other` must be of dynamic type `SimpleEventLoop`.
+  - This precondition is guaranteed by the base class `swap()` implementation and must not be checked redundantly here.
 - **Complexity:** Constant.
