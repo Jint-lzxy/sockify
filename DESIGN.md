@@ -31,14 +31,14 @@ As you program with Sockify, keep in mind the following rules to help you get be
                          +-------------------------+
                                       ^
                                       |
-                   +------------------+------------------+            <-- Additional protocols can be
-                   |                  |                  |            <-- defined (and some are already
-                   |                  |                  |            <-- included in the library) by
-                   |                  |                  |            <-- deriving from sockify::Socket
-         +--------------------+       |       +--------------------+
-         | sockify::TCPSocket |       |       | sockify::UDPSocket |
-         | (TCP socket impl)  |       |       | (UDP socket impl)  |
-         +--------------------+       |       +--------------------+
+                   +------------------+--------------------+            <-- Additional protocols can be
+                   |                  |                    |            <-- defined (and some are already
+                   |                  |                    |            <-- included in the library) by
+                   |                  |                    |            <-- deriving from sockify::Socket
+        +----------------------+      |       +------------------------+
+        |     StreamSocket     |      |       |     DatagramSocket     |
+        | (stream socket impl) |      |       | (datagram socket impl) |
+        +----------------------+      |       +------------------------+
                                       |
                                       |
                          +-------------------------+
@@ -988,16 +988,17 @@ using Buffer = std::vector<std::byte>;
 
 ### `Socket`
 
-The `Socket` class defines a unified, protocol-agnostic interface for synchronous sockets. It encapsulates the basic lifecycle, option management and read/write interfaces, and is intended to be inherited by concrete socket types such as `TCPSocket` and `UDPSocket`.
+The `Socket` class defines a unified, protocol-agnostic interface for synchronous sockets. It encapsulates the basic lifecycle, option management and read/write interfaces, and is intended to be inherited by concrete socket types such as `StreamSocket` and `DatagramSocket`.
 
 #### Member Types
 
-| Name                 | Explanation                                                                               |
-| -------------------- | ----------------------------------------------------------------------------------------- |
-| `duration`           | Type representing durations for timeouts (`std::chrono::milliseconds` on most platforms). |
-| `buffer_type`        | Type representing buffers used for socket I/O operations (always `Buffer`).               |
-| `address_type`       | Type representing socket addresses (always `Address`).                                    |
-| `native_handle_type` | Platform-specific socket handle.                                                          |
+| Name                  | Explanation                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| `duration`            | Type representing durations for timeouts (`std::chrono::milliseconds` on most platforms). |
+| `buffer_type`         | Type representing buffers used for socket I/O operations (always `Buffer`).               |
+| `address_type`        | Type representing socket addresses (always `Address`).                                    |
+| `address_family_type` | An alias for the scoped enumeration `AddressFamily`.                                      |
+| `native_handle_type`  | Platform-specific socket handle.                                                          |
 
 #### Data Members
 
@@ -1397,30 +1398,28 @@ friend void swap(Socket& lhs, Socket& rhs) noexcept;
 
 ---
 
-### `TCPSocket`
+### `StreamSocket`
 
-The `TCPSocket` class encapsulates a TCP socket, providing a high-level interface for managing and interacting with a network socket. It supports the standard operations needed for creating, binding, connecting, reading, writing and closing a TCP socket, while ensuring proper resource management and error handling.
-
-The `TCPSocket` class is marked as `final` because it already provides a complete and optimized implementation for managing TCP socket operations.
+The `StreamSocket` class encapsulates a stream-oriented network socket, providing a high-level interface for managing socket operations using the `SOCK_STREAM` type and an automatically detected protocol (protocol set to `0`). It supports the complete set of standard operations required to create, bind, connect, read from, write to and close a stream socket, while ensuring robust resource management and error handling.
 
 #### Synopsis
 
 ```cpp
-class TCPSocket final : public Socket {
+class StreamSocket : public Socket {
 public:
   // Constructors & Destructor
-  TCPSocket();                                     // Default constructor
-  explicit TCPSocket(const address_type& address); // Constructor from address
-  explicit TCPSocket(native_handle_type handle,
+  StreamSocket();                                     // Default constructor
+  explicit StreamSocket(const address_type& address); // Constructor from address
+  explicit StreamSocket(native_handle_type handle,
                      const address_type& address = address_type()); // Constructor from native handle
 
-  TCPSocket(const TCPSocket& other);            // Copy constructor
-  TCPSocket& operator=(const TCPSocket& other); // Copy assignment operator
+  StreamSocket(const StreamSocket& other);            // Copy constructor
+  StreamSocket& operator=(const StreamSocket& other); // Copy assignment operator
 
-  TCPSocket(TCPSocket&& other) noexcept;            // Move constructor
-  TCPSocket& operator=(TCPSocket&& other) noexcept; // Move assignment operator
+  StreamSocket(StreamSocket&& other) noexcept;            // Move constructor
+  StreamSocket& operator=(StreamSocket&& other) noexcept; // Move assignment operator
 
-  ~TCPSocket() override; // Destructor
+  ~StreamSocket() override; // Destructor
 
   // Socket operations
   void bind(const address_type& address) override;
@@ -1483,70 +1482,60 @@ protected:
 
 #### Additional Member Functions
 
-1. **Default Constructor:**
+1. **Constructor (from address):**
 
 ```cpp
-TCPSocket();
+explicit StreamSocket(address_family_type family = AddressFamily::IPv4);
 ```
 
 - **Effects:**
-  - Creates a new, unconnected and unbound TCP socket.
-
-2. **Constructor (from address):**
-
-```cpp
-explicit TCPSocket(const address_type& address);
-```
-
-- **Effects:**
-  - Creates a TCP socket and associates it with the specified `address`.
-- **Notes:**
-  - This constructor sets the socket's local endpoint, but it does **not** perform the `bind` operation. `bind` must be called separately to explicitly bind the socket to the address.
+  - Creates a stream socket with the specified address family, using `SOCK_STREAM` as the socket type and protocol set to `0` (auto-detected).
+  - The default address family is `AddressFamily::IPv4`.
 - **Exceptions:**
-  - Throws `socket_error` if the socket creation or binding fails (e.g., invalid address).
+  - Throws `socket_error` if the socket creation fails (e.g., the per-process descriptor table is full).
 
-3. **Constructor (from native handle):**
+2. **Constructor (from native handle):**
 
 ```cpp
-explicit TCPSocket(native_handle_type handle,
-                   const address_type& address = address_type());
+explicit StreamSocket(native_handle_type handle,
+                      address_family_type family = AddressFamily::Unknown);
 ```
 
 - **Effects:**
   - Takes ownership of an existing socket handle.
-  - The socket's family, type, and protocol are auto-detected from the handle unless overridden by the `address` argument.
+  - The socket's address family is auto-detected from the handle unless overridden by the `family` argument.
 - **Notes:**
-  - This allows the socket to be used with the appropriate family, type and protocol without duplicating the handle. Useful when a socket is created outside this class (e.g., using `accept()`).
+  - This allows the socket to be used with the appropriate family and protocol without duplicating the handle. Useful when a socket is created outside this class (e.g., using `accept()`).
 - **Exceptions:**
-  - Throws `socket_error` if the handle is invalid or not a TCP socket.
+  - Throws `socket_error` if the handle is invalid or not a stream socket.
 - **Complexity:** Constant.
 
-4. **Copy Constructor:**
+3. **Copy Constructor:**
 
 ```cpp
-TCPSocket(const TCPSocket& other);
+StreamSocket(const StreamSocket& other);
 ```
 
 - **Effects:**
-  - Creates a copy of the other `TCPSocket` object. This duplicates the socket handle and copies the internal state (e.g., timeout settings).
+  - Creates a copy of the other `StreamSocket` object. This duplicates the socket handle and copies the internal state (e.g., timeout settings).
 - **Exceptions:**
   - Throws `socket_error` if copying the socket fails (e.g., invalid handle).
 
-5. **Copy Assignment Operator:**
+4. **Copy Assignment Operator:**
 
 ```cpp
-TCPSocket& operator=(const TCPSocket& other);
+StreamSocket& operator=(const StreamSocket& other);
 ```
 
 - **Effects:**
-  - Copies the state of another `TCPSocket` into this one. This duplicates the socket handle and copies the internal state (e.g., timeout settings).
+  - Copies the state of another `StreamSocket` into this one. This duplicates the socket handle and copies the internal state (e.g., timeout settings).
 - **Exceptions:**
   - Throws `socket_error` if copying the socket fails (e.g., invalid handle).
 
-6. **Move Constructor:**
+5. **Move Constructor:**
 
 ```cpp
-TCPSocket(TCPSocket&& other) noexcept;
+StreamSocket(StreamSocket&& other) noexcept;
 ```
 
 - **Effects:**
@@ -1554,10 +1543,10 @@ TCPSocket(TCPSocket&& other) noexcept;
   - After the move `other` will be in a valid but unspecified state.
 - **Complexity:** Constant.
 
-7. **Move Assignment Operator:**
+6. **Move Assignment Operator:**
 
 ```cpp
-TCPSocket& operator=(TCPSocket&& other) noexcept;
+StreamSocket& operator=(StreamSocket&& other) noexcept;
 ```
 
 - **Effects:**
@@ -1565,10 +1554,10 @@ TCPSocket& operator=(TCPSocket&& other) noexcept;
   - After the move `other` will be in a valid but unspecified state.
 - **Complexity:** Constant.
 
-8. **Destructor:**
+7. **Destructor:**
 
 ```cpp
-~TCPSocket() override;
+~StreamSocket() override;
 ```
 
 - **Effects:**
@@ -1577,17 +1566,17 @@ TCPSocket& operator=(TCPSocket&& other) noexcept;
 
 #### Swap Function
 
-To allow efficient swapping of `TCPSocket` objects (including during exception handling or container operations like `std::swap`):
+To allow efficient swapping of `StreamSocket` objects (including during exception handling or container operations like `std::swap`):
 
 ```cpp
 void do_swap(Socket& other) noexcept override;
 ```
 
 - **Effects:**
-  - Swaps members specific to the `TCPSocket` class.
-  - Performs a `static_cast` of other to `TCPSocket&` and then exchanges any additional state.
+  - Swaps members specific to the `StreamSocket` class.
+  - Performs a `static_cast` of other to `StreamSocket&` and then exchanges any additional state.
 - **Preconditions:**
-  - `other` must be of dynamic type `TCPSocket`.
+  - `other` must be of dynamic type `StreamSocket`.
   - This precondition is guaranteed by the base class `swap()` implementation and must not be checked redundantly here.
 - **Complexity:** Constant.
 
