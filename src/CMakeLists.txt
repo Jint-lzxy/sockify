@@ -1,1 +1,1 @@
-add_executable(${CMAKE_PROJECT_NAME} main.cpp)
+add_executable(${CMAKE_PROJECT_NAME} sockify/cli/main.cpp)

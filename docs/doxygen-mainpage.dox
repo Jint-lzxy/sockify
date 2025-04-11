@@ -5,11 +5,10 @@
 ///
 /// This documentation describes both the private and public interface of Sockify.
 /// There are no instructions here on how to use Sockify, only the APIs
-/// that make up the software. For usage instructions, please see
-/// the help command.
+/// that make up the software.
 ///
 /// @section main_caveat Caveat
 /// This documentation is generated directly from the source code with doxygen.
 /// Since Sockify is constantly under active development, what you're about to
-/// read is out of date! However, it may still be useful since certain portions
-/// of Sockify are very stable.
+/// read is (probably) out of date! However, it may still be useful since certain
+/// portions of Sockify are very stable.
