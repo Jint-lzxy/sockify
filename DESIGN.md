@@ -276,14 +276,6 @@ void reset() noexcept;
 - **Effects:**
   - Resets the `Address` object to its empty state. After calling `reset()`, the internal `address` is undefined.
 
-```cpp
-value_type release() noexcept;
-```
-
-- **Effects:**
-  - Releases ownership of the internal raw network address, returning the stored `address`. After this call, the `Address` object is reset to its empty state.
-- **Returns:** The released raw address data.
-
 9. **Comparison Operators**
 
 ```cpp
