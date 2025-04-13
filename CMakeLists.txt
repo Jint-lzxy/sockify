@@ -41,14 +41,14 @@ include(CMakeDependentOption)
 cmake_dependent_option(SOCKIFY_BUILD_DOCS "Build documentation for Sockify" ON
                        "SOCKIFY_DEVELOPMENT_BUILD" OFF)
 cmake_dependent_option(
+  SOCKIFY_ENABLE_WERROR "Enable -Werror to treat warnings as errors" ON
+  "SOCKIFY_DEVELOPMENT_BUILD" OFF)
+cmake_dependent_option(
   SOCKIFY_BUILD_TESTS "Build tests for Sockify" ON
   "SOCKIFY_DEVELOPMENT_BUILD;NOT SOCKIFY_BUNDLE_LIBRARY" OFF)
 cmake_dependent_option(
   SOCKIFY_ENABLE_COVERAGE "Enable code coverage instrumentation" ON
-  "SOCKIFY_DEVELOPMENT_BUILD;NOT SOCKIFY_BUNDLE_LIBRARY" OFF)
-cmake_dependent_option(
-  SOCKIFY_ENABLE_WERROR "Enable -Werror to treat warnings as errors" ON
-  "SOCKIFY_DEVELOPMENT_BUILD" OFF)
+  "SOCKIFY_BUILD_TESTS" OFF)
 
 # Enforce that Catch2 must be available if tests are being built
 if(SOCKIFY_BUILD_TESTS)
