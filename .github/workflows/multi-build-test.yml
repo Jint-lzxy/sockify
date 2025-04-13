@@ -32,6 +32,7 @@ jobs:
           run-build: true
           options: |
             SOCKIFY_DEVELOPMENT_BUILD=ON
+            SOCKIFY_BUILD_DOCS=OFF
 
       - name: Upload build artifacts
         uses: pyTooling/upload-artifact@v4
