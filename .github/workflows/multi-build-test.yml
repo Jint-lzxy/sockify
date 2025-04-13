@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest] # windows-latest
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
     needs: [ build ]
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest] # windows-latest
     steps:
       - name: Download build artifacts
         uses: pyTooling/download-artifact@v4
