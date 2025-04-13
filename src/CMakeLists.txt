@@ -2,12 +2,28 @@ set(abs_top_srcdir
     "${CMAKE_CURRENT_LIST_DIR}/sockify"
     CACHE INTERNAL "Top-level source directory for Sockify")
 
+function(expand_sources out_var base_dir files)
+  foreach(file IN LISTS ${files})
+    list(APPEND result "${base_dir}/${file}")
+  endforeach()
+
+  set(${out_var}
+      "${result}"
+      PARENT_SCOPE)
+endfunction()
+
 # -----------------------------------------------------------------------------
 # Collect source files under lib/ and cli/
 # -----------------------------------------------------------------------------
 
-file(GLOB LIBSOCKIFY_SOURCES "${abs_top_srcdir}/lib/*.cpp")
-file(GLOB NC_SOURCES "${abs_top_srcdir}/cli/*.cpp")
+# Leaf filenames only
+set(LIBSOCKIFY_SOURCE_FILES entry.cpp)
+set(NC_SOURCE_FILES main.cpp)
+
+# Expand to full paths
+expand_sources(LIBSOCKIFY_SOURCES "${abs_top_srcdir}/lib"
+               LIBSOCKIFY_SOURCE_FILES)
+expand_sources(NC_SOURCES "${abs_top_srcdir}/cli" NC_SOURCE_FILES)
 
 # -----------------------------------------------------------------------------
 # Library Target

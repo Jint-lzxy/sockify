@@ -59,12 +59,12 @@ function(libevent_find_component COMPONENT FIND_NAME)
   endif()
 endfunction()
 
-function(libevent_create_imported_target target var)
-  if(${var} AND NOT TARGET ${target})
-    add_library(${target} UNKNOWN IMPORTED)
+function(libevent_create_imported_target TARGET VAR)
+  if(${VAR} AND NOT TARGET ${TARGET})
+    add_library(${TARGET} UNKNOWN IMPORTED)
     set_target_properties(
-      ${target}
-      PROPERTIES IMPORTED_LOCATION ${${var}}
+      ${TARGET}
+      PROPERTIES IMPORTED_LOCATION ${${VAR}}
                  INTERFACE_INCLUDE_DIRECTORIES "${LIBEVENT_INCLUDE_DIRS}")
   endif()
 endfunction()
