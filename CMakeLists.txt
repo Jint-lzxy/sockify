@@ -93,7 +93,7 @@ if(SOCKIFY_ENABLE_COVERAGE)
     # as Visual Studio Code Coverage or third-party tools) require full PDB
     # information.
     add_compile_options(/Zi)
-    add_link_options(/DEBUG:FULL /PROFILE)
+    add_link_options(/DEBUG:FULL /INCREMENTAL:NO /PROFILE)
   else()
     message(
       FATAL_ERROR

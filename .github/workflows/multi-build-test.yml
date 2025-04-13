@@ -31,7 +31,7 @@ jobs:
           build-dir: ${{ matrix.os }}-${{ runner.arch }}
           run-build: true
           options: |
-            SOCKIFY_BUILD_TESTS=ON
+            SOCKIFY_DEVELOPMENT_BUILD=ON
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
