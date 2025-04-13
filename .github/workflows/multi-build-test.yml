@@ -34,7 +34,7 @@ jobs:
             SOCKIFY_DEVELOPMENT_BUILD=ON
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: pyTooling/upload-artifact@v4
         with:
           name: build-${{ matrix.os }}-${{ runner.arch }}
           path: ${{ steps.cmake_build.outputs.build-dir }}
@@ -49,10 +49,10 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: pyTooling/download-artifact@v4
         with:
           name: build-${{ matrix.os }}-${{ runner.arch }}
 
       - name: Run tests
         run: |
-          ctest --output-on-failure
+          ctest --test-dir "${{ matrix.os }}-${{ runner.arch }}${{ matrix.os == 'windows-latest' && '\\tests' || '/tests' }}" --output-on-failure
