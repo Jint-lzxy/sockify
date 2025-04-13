@@ -27,6 +27,7 @@ Checks: >-
   misc-*,
   -misc-no-recursion,
   -misc-use-anonymous-namespace,
+  -misc-use-internal-linkage,
 
   modernize-*,
   -modernize-avoid-bind,
