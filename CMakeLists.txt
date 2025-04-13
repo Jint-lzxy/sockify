@@ -38,7 +38,7 @@ option(
 
 # Dependent options for building parts of the project
 include(CMakeDependentOption)
-cmake_dependent_option(SOCKIFY_BUILD_DOCS "Build documentation" ON
+cmake_dependent_option(SOCKIFY_BUILD_DOCS "Build documentation for Sockify" ON
                        "SOCKIFY_DEVELOPMENT_BUILD" OFF)
 cmake_dependent_option(
   SOCKIFY_BUILD_TESTS "Build tests for Sockify" ON
