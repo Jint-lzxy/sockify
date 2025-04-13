@@ -1,4 +1,4 @@
-//===-- main.cpp - CLI entry point ------------------------------*- C++ -*-===//
+//===-- entry.cpp - Library entry point -------------------------*- C++ -*-===//
 //
 // Part of the Sockify Project, under the BSD 3-Clause License.
 // SPDX-License-Identifier: BSD 3-Clause "New" or "Revised" License
@@ -11,17 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 #ifdef _WIN32
-#  define DLLIMPORT __declspec(dllimport)
+#  define DLLEXPORT __declspec(dllexport)
 #else
-#  define DLLIMPORT
+#  define DLLEXPORT
 #endif
 
-namespace sockify {
-DLLIMPORT void hello();
-} // namespace sockify
+#include <iostream>
 
-int main()
-{
-  sockify::hello();
-  return 0;
-}
+namespace sockify {
+DLLEXPORT void hello() { std::cout << "Hello Sockify!\n"; }
+} // namespace sockify
