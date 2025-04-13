@@ -47,7 +47,7 @@ PROJECT_NAME           = "Sockify"
 # could be handy for archiving the generated documentation or if some version
 # control system is used.
 
-PROJECT_NUMBER         = @PACKAGE_VERSION@
+PROJECT_NUMBER         = @PROJECT_VERSION@
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewers a
@@ -190,7 +190,7 @@ STRIP_FROM_PATH        = @abs_top_srcdir@
 
 STRIP_FROM_INC_PATH    = @abs_top_srcdir@/include \
                          @abs_top_srcdir@/lib \
-                         @abs_top_srcdir@/src
+                         @abs_top_srcdir@/cli
 
 # If the SHORT_NAMES tag is set to YES, Doxygen will generate much shorter (but
 # less readable) file names. This can be useful if your file system doesn't
