@@ -3,46 +3,69 @@ cmake_minimum_required(VERSION 3.16.0)
 # Enable folder grouping for IDEs
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-# Detect whether Sockify is being bundled into another
+# Make sure our custom CMake modules are available
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
+project(
+  sockify
+  VERSION 0.1.0 # CML version placeholder, don't delete
+  LANGUAGES CXX
+  HOMEPAGE_URL "https://github.com/Jint-lzxy/sockify"
+  DESCRIPTION "A modern, C++-native, socket library.")
+
+set(CMAKE_CXX_STANDARD
+    17
+    CACHE STRING "C++ standard to conform to")
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
+set(CMAKE_CXX_EXTENSIONS NO)
+
+# Detect whether Sockify is being bundled into another project
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(SOCKIFY_BUNDLE_LIBRARY OFF)
 else()
   set(SOCKIFY_BUNDLE_LIBRARY ON)
 endif()
 
-project(
-  Sockify
-  VERSION 0.1.0 # CML version placeholder, don't delete
-  LANGUAGES CXX
-  HOMEPAGE_URL "https://github.com/Jint-lzxy/sockify"
-  DESCRIPTION "A modern, C++-native, socket library.")
-
 # -----------------------------------------------------------------------------
 # Options
 # -----------------------------------------------------------------------------
 
-option(DEVELOPMENT_BUILD
-       "Enable development build settings (build tests, enable -Werror, etc.)"
-       OFF)
+# General development settings
+option(
+  SOCKIFY_DEVELOPMENT_BUILD
+  "Enable development build settings (build tests, docs, enable -Werror, etc.)"
+  OFF)
 
-# Use cmake_dependent_option to configure dependent options. The tests will be
-# built if DEVELOPMENT_BUILD is enabled and if we're not bundling.
+# Dependent options for building parts of the project
 include(CMakeDependentOption)
-cmake_dependent_option(SOCKIFY_BUILD_TESTS "Build tests for Sockify" ON
-                       "DEVELOPMENT_BUILD;NOT SOCKIFY_BUNDLE_LIBRARY" OFF)
+cmake_dependent_option(SOCKIFY_BUILD_DOCS "Build documentation" ON
+                       "SOCKIFY_DEVELOPMENT_BUILD" OFF)
+cmake_dependent_option(
+  SOCKIFY_BUILD_TESTS "Build tests for Sockify" ON
+  "SOCKIFY_DEVELOPMENT_BUILD;NOT SOCKIFY_BUNDLE_LIBRARY" OFF)
 cmake_dependent_option(
   SOCKIFY_ENABLE_COVERAGE "Enable code coverage instrumentation" ON
-  "DEVELOPMENT_BUILD" OFF)
+  "SOCKIFY_DEVELOPMENT_BUILD;NOT SOCKIFY_BUNDLE_LIBRARY" OFF)
 cmake_dependent_option(
   SOCKIFY_ENABLE_WERROR "Enable -Werror to treat warnings as errors" ON
-  "DEVELOPMENT_BUILD" OFF)
+  "SOCKIFY_DEVELOPMENT_BUILD" OFF)
+
+# Enforce that Catch2 must be available if tests are being built
+if(SOCKIFY_BUILD_TESTS)
+  if(DEFINED SOCKIFY_USE_CATCH2 AND NOT SOCKIFY_USE_CATCH2)
+    message(
+      FATAL_ERROR
+        "Catch2 is disabled (SOCKIFY_USE_CATCH2 is OFF) but tests are enabled! Please enable Catch2 or disable tests."
+    )
+  endif()
+endif()
 
 # -----------------------------------------------------------------------------
 # Set Compiler Flags
 # -----------------------------------------------------------------------------
 
-# Enable almost all warnings
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+# Enable a robust level of warnings
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   add_compile_options(-Wall -Wextra -pedantic)
   if(SOCKIFY_ENABLE_WERROR)
     add_compile_options(-Werror)
@@ -55,13 +78,40 @@ elseif(MSVC)
 endif()
 
 # -----------------------------------------------------------------------------
+# Code Coverage Setup
+# -----------------------------------------------------------------------------
+if(SOCKIFY_ENABLE_COVERAGE)
+  message(STATUS "Code coverage instrumentation enabled")
+
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    # For Clang and GNU, disable optimization to get accurate coverage data,
+    # include debugging symbols, and enable coverage instrumentation.
+    add_compile_options(-O0 -g --coverage)
+    add_link_options(--coverage)
+  elseif(MSVC)
+    # For MSVC, enable full debug information. Coverage tools on Windows (such
+    # as Visual Studio Code Coverage or third-party tools) require full PDB
+    # information.
+    add_compile_options(/Zi)
+    add_link_options(/DEBUG:FULL /PROFILE)
+  else()
+    message(
+      FATAL_ERROR
+        "Code coverage is not supported with this compiler (${CMAKE_CXX_COMPILER_ID})"
+    )
+  endif()
+endif()
+
+# -----------------------------------------------------------------------------
 # Subdirectories
 # -----------------------------------------------------------------------------
 
-# Add the 'src' directory for the library (and any optional command line tools)
 add_subdirectory(src)
 
-# Only build tests if SOCKIFY_BUILD_TESTS is enabled
+if(SOCKIFY_BUILD_DOCS)
+  add_subdirectory(docs)
+endif()
+
 if(SOCKIFY_BUILD_TESTS)
   add_subdirectory(tests)
 endif()
