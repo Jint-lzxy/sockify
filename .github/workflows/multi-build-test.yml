@@ -12,13 +12,16 @@ permissions:
   contents: read # Default everything to read-only
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  # The concurrency group contains the workflow name and the branch name for
+  # pull requests or the commit hash for any other events.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest] # windows-latest
     steps:
@@ -67,16 +70,23 @@ jobs:
           ctest --output-on-failure
 
       - name: Generate coverage with gcov
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+        if: ${{ !cancelled() && (matrix.os == 'ubuntu' || matrix.os == 'macos') }}
         working-directory: ${{ env.TEST_DIR }}
         run: |
           find . -type f -name '*.gcno' -exec gcov -pb {} + || true
 
       - name: Upload coverage to Codecov
+        if: ${{ !cancelled() && (matrix.os == 'ubuntu' || matrix.os == 'macos') }}
         timeout-minutes: 20
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
         uses: codecov/codecov-action@v5
         with:
           name: codecov-${{ matrix.os }}
           directory: ${{ env.TEST_DIR }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() && (matrix.os == 'ubuntu' || matrix.os == 'macos') }}
+        uses: codecov/test-results-action@v1
+        with:
+          files: ${{ env.TEST_DIR }}/sockify-test-results.xml
           token: ${{ secrets.CODECOV_TOKEN }}
