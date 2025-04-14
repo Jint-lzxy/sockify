@@ -70,13 +70,13 @@ jobs:
           ctest --output-on-failure
 
       - name: Generate coverage with gcov
-        if: ${{ !cancelled() && (matrix.os == 'ubuntu' || matrix.os == 'macos') }}
+        if: ${{ !cancelled() && (matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest') }}
         working-directory: ${{ env.TEST_DIR }}
         run: |
           find . -type f -name '*.gcno' -exec gcov -pb {} + || true
 
       - name: Upload coverage to Codecov
-        if: ${{ !cancelled() && (matrix.os == 'ubuntu' || matrix.os == 'macos') }}
+        if: ${{ !cancelled() && (matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest') }}
         timeout-minutes: 20
         uses: codecov/codecov-action@v5
         with:
@@ -85,7 +85,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload test results to Codecov
-        if: ${{ !cancelled() && (matrix.os == 'ubuntu' || matrix.os == 'macos') }}
+        if: ${{ !cancelled() && (matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest') }}
         uses: codecov/test-results-action@v1
         with:
           files: ${{ env.TEST_DIR }}/sockify-test-results.xml
