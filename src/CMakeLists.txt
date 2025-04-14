@@ -28,7 +28,9 @@ expand_sources(NC_SOURCES "${abs_top_srcdir}/cli" NC_SOURCE_FILES)
 # -----------------------------------------------------------------------------
 # Library Target
 # -----------------------------------------------------------------------------
-set(LIBSOCKIFY_TARGET "${PROJECT_NAME}")
+set(LIBSOCKIFY_TARGET
+    "${PROJECT_NAME}"
+    CACHE STRING "Name of the library target")
 add_library(${LIBSOCKIFY_TARGET} SHARED ${LIBSOCKIFY_SOURCES})
 target_include_directories(${LIBSOCKIFY_TARGET}
                            PUBLIC "${abs_top_srcdir}/include")

@@ -104,7 +104,9 @@ configure_file(${DOXYGEN_CFG_IN} ${DOXYGEN_CFG_OUT} @ONLY)
 # HTML Output
 # -----------------------------------------------------------------------------
 
-set(DOC_TARGET "${PROJECT_NAME}_doc")
+set(DOC_TARGET
+    "${PROJECT_NAME}_doc"
+    CACHE STRING "Name of the documentation target")
 
 add_custom_command(
   OUTPUT ${abs_top_builddir}/doxygen/html/index.html
