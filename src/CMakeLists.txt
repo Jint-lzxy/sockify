@@ -38,5 +38,11 @@ target_include_directories(${LIBSOCKIFY_TARGET}
 # -----------------------------------------------------------------------------
 # CLI Executable Target
 # -----------------------------------------------------------------------------
-add_executable(nc ${NC_SOURCES})
-target_link_libraries(nc PRIVATE ${LIBSOCKIFY_TARGET})
+set(SOCKIFY_CLI_TARGET
+    "nc"
+    CACHE STRING "Name of the CLI target")
+
+if(SOCKIFY_BUILD_CLI)
+  add_executable(${SOCKIFY_CLI_TARGET} ${NC_SOURCES})
+  target_link_libraries(${SOCKIFY_CLI_TARGET} PRIVATE ${LIBSOCKIFY_TARGET})
+endif()

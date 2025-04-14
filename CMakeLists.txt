@@ -44,6 +44,9 @@ cmake_dependent_option(
   SOCKIFY_ENABLE_WERROR "Enable -Werror to treat warnings as errors" ON
   "SOCKIFY_DEVELOPMENT_BUILD" OFF)
 cmake_dependent_option(
+  SOCKIFY_BUILD_CLI "Build the CLI executable for Sockify" ON
+  "SOCKIFY_DEVELOPMENT_BUILD;NOT SOCKIFY_BUNDLE_LIBRARY" OFF)
+cmake_dependent_option(
   SOCKIFY_BUILD_TESTS "Build tests for Sockify" ON
   "SOCKIFY_DEVELOPMENT_BUILD;NOT SOCKIFY_BUNDLE_LIBRARY" OFF)
 cmake_dependent_option(
