@@ -62,8 +62,9 @@ jobs:
         with:
           name: build-${{ matrix.os }}-${{ runner.arch }}
 
-      - name: Set up TEST_DIR environment variable
+      - name: Set up test environment variables
         run: |
+          echo "BUILD_DIR=${{ matrix.os }}-${{ runner.arch }}" >> "$GITHUB_ENV"
           echo "TEST_DIR=${{ matrix.os }}-${{ runner.arch }}${{ matrix.os == 'windows-latest' && '\\tests' || '/tests' }}" >> "$GITHUB_ENV"
 
       - name: Run tests
@@ -74,7 +75,7 @@ jobs:
 
       - name: Generate coverage with gcov
         if: ${{ !cancelled() && (matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest') }}
-        working-directory: ${{ env.TEST_DIR }}
+        working-directory: ${{ env.BUILD_DIR }}
         run: |
           find . -type f -name '*.gcno' -exec gcov -pb {} + || true
 
@@ -84,7 +85,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           name: codecov-${{ matrix.os }}
-          directory: ${{ env.TEST_DIR }}
+          directory: ${{ env.BUILD_DIR }}
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload test results to Codecov
