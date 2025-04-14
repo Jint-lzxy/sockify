@@ -11,5 +11,20 @@
 //===----------------------------------------------------------------------===//
 
 #include <catch2/catch_test_macros.hpp>
+#include <iostream>
+#include <sstream>
 
-TEST_CASE("Dummy test case", "[dummy]") { SUCCEED(); }
+namespace sockify {
+void hello();
+} // namespace sockify
+
+TEST_CASE("sockify::hello outputs the correct greeting", "[hello]")
+{
+  std::stringstream sstr;
+  std::streambuf* buf = std::cout.rdbuf(sstr.rdbuf());
+
+  sockify::hello();
+
+  std::cout.rdbuf(buf);
+  REQUIRE(sstr.str() == "Hello Sockify!\n");
+}
