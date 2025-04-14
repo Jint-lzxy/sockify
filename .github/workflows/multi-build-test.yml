@@ -65,7 +65,7 @@ jobs:
       - name: Set up test environment variables
         run: |
           echo "BUILD_DIR=${{ matrix.os }}-${{ runner.arch }}" >> "$GITHUB_ENV"
-          echo "TEST_DIR=${{ matrix.os }}-${{ runner.arch }}${{ matrix.os == 'windows-latest' && '\\tests' || '/tests' }}" >> "$GITHUB_ENV"
+          echo "TEST_DIR=${{ env.BUILD_DIR }}${{ matrix.os == 'windows-latest' && '\\tests' || '/tests' }}" >> "$GITHUB_ENV"
 
       - name: Run tests
         timeout-minutes: 25

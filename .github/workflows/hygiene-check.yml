@@ -69,4 +69,4 @@ jobs:
           [ ${#FILES[@]} -gt 0 ] || { echo "Error: No files found for clang-format."; exit 1; }
 
           echo "Checking formatting..."
-          clang-format --dry-run --Werror --fcolor-diagnostics -style=file "${FILES[@]}"
+          clang-format --dry-run -Werror -fcolor-diagnostics -style=file "${FILES[@]}"
