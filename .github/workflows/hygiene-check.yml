@@ -30,6 +30,7 @@ jobs:
           ln -svf "$BUILD_DIR/compile_commands.json" .
 
       - name: Run clang-tidy
+        timeout-minutes: 15
         run: |
           BUILD_DIR=build
           mapfile -t SRC_FILES < <(jq -r '.[].file' "$BUILD_DIR/compile_commands.json" | sort -u)
@@ -57,6 +58,7 @@ jobs:
           [ -f "$BUILD_DIR/compile_commands.json" ] || { echo "Error: compile_commands.json not generated."; exit 1; }
 
       - name: Run clang-format
+        timeout-minutes: 15
         run: |
           BUILD_DIR=build
           mapfile -t SRC_FILES < <(jq -r '.[].file' "$BUILD_DIR/compile_commands.json" | sort -u)

@@ -1,7 +1,9 @@
 # This workflow builds and tests the project on multiple platforms (Ubuntu, macOS, Windows).
 # It consists of two jobs: `build` to compile the project and upload build artifacts, and `test` to download
-# the artifacts and run the tests. The build artifacts are uploaded only if the build succeeds, and the test job
-# runs only after a successful build. The matrix strategy runs both jobs in parallel for faster feedback.
+# the artifacts and run the tests. On Linux and macOS, the workflow also generates a code coverage report
+# using `gcov -pb` and uploads it to Codecov.
+#
+# Build artifacts are uploaded only if the build succeeds, and the test job runs only after a successful build.
 
 name: build and test project (multi)
 on: [push, pull_request]
@@ -54,6 +56,27 @@ jobs:
         with:
           name: build-${{ matrix.os }}-${{ runner.arch }}
 
-      - name: Run tests
+      - name: Set up TEST_DIR environment variable
         run: |
-          ctest --test-dir "${{ matrix.os }}-${{ runner.arch }}${{ matrix.os == 'windows-latest' && '\\tests' || '/tests' }}" --output-on-failure
+          echo "TEST_DIR=${{ matrix.os }}-${{ runner.arch }}${{ matrix.os == 'windows-latest' && '\\tests' || '/tests' }}" >> "$GITHUB_ENV"
+
+      - name: Run tests
+        timeout-minutes: 25
+        working-directory: ${{ env.TEST_DIR }}
+        run: |
+          ctest --output-on-failure
+
+      - name: Generate coverage with gcov
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+        working-directory: ${{ env.TEST_DIR }}
+        run: |
+          find . -type f -name '*.gcno' -exec gcov -pb {} + || true
+
+      - name: Upload coverage to Codecov
+        timeout-minutes: 20
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+        uses: codecov/codecov-action@v5
+        with:
+          name: codecov-${{ matrix.os }}
+          directory: ${{ env.TEST_DIR }}
+          token: ${{ secrets.CODECOV_TOKEN }}
