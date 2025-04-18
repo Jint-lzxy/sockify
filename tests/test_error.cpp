@@ -7,6 +7,8 @@
 #include <system_error>
 #include <utility>
 
+#define LAST_SOCKET_ERRC socket_errc::tls_cert_verify
+
 using namespace sockify;
 
 static std::error_code to_std_errc(std::errc ec) { return std::make_error_code(ec); }
@@ -17,7 +19,7 @@ TEST_CASE("socket_errc traits and conversions", "[error][traits]")
 
   SECTION("make_error_code and make_error_condition roundtrip")
   {
-    for (int i = 0; i <= static_cast<int>(socket_errc::tls_cert_verify); ++i) {
+    for (int i = 0; i <= static_cast<int>(LAST_SOCKET_ERRC); ++i) {
       auto err = static_cast<socket_errc>(i);
       DYNAMIC_SECTION("Testing value " << i)
       {
@@ -44,7 +46,7 @@ TEST_CASE("socket_category name and messages", "[error][category][message]")
 
   SECTION("Known messages are mapped")
   {
-    for (int i = 0; i <= static_cast<int>(socket_errc::tls_cert_verify); ++i) {
+    for (int i = 0; i <= static_cast<int>(LAST_SOCKET_ERRC); ++i) {
       DYNAMIC_SECTION("Message for code " << i)
       {
         auto msg = socket_category().message(i);
@@ -65,7 +67,7 @@ TEST_CASE("equivalent() works as expected", "[error][equivalence]")
 {
   SECTION("Reflexivity within socket_category")
   {
-    for (int i = 0; i <= static_cast<int>(socket_errc::tls_cert_verify); ++i) {
+    for (int i = 0; i <= static_cast<int>(LAST_SOCKET_ERRC); ++i) {
       auto code = make_error_code(static_cast<socket_errc>(i));
       DYNAMIC_SECTION("Code " << i << " equivalent to itself") { CHECK(socket_category().equivalent(code, i)); }
     }
