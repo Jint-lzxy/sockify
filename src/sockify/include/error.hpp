@@ -95,7 +95,7 @@ namespace details {
 ///
 /// Used internally to provide category name, human-readable messages,
 /// and condition equivalence logic.
-class SOCKIFY_HIDDEN socket_category_impl : public std::error_category {
+class SOCKIFY_EXPORT socket_category_impl : public std::error_category {
 public:
   /// Returns the name of the category ("sockify::socket_category").
   const char* name() const noexcept override;
