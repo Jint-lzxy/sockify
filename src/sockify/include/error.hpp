@@ -114,7 +114,7 @@ public:
 /// \note Thread-safe and lazily constructed.
 inline SOCKIFY_EXPORT const details::socket_category_impl& socket_category() noexcept
 {
-  static details::socket_category_impl singleton;
+  static const details::socket_category_impl singleton;
   return singleton;
 }
 
