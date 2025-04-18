@@ -1,7 +1,13 @@
 # This workflow performs hygiene checks using `clang-tidy` and `clang-format` on push and pull requests.
 
 name: hygiene check
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - beta
+  pull_request:
+    branches:
+      - '*'
 
 permissions:
   contents: read # Default everything to read-only
