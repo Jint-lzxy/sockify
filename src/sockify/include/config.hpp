@@ -1,0 +1,121 @@
+//===-- config.hpp - Configuration macros -----------------------*- C++ -*-===//
+//
+// Part of the Sockify Project, under the BSD 3‑Clause License.
+// SPDX-License-Identifier: BSD‑3‑Clause
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// Configuration macros, versioning, compiler/platform detection and
+/// attribute definitions for the library.
+///
+//===----------------------------------------------------------------------===//
+
+#ifndef SOCKIFY_CONFIG_HPP
+#define SOCKIFY_CONFIG_HPP
+
+// Ensure C++17 or later is used, otherwise trigger an error.
+#if __cplusplus < 201703L
+#  error "libsockify requires C++17 or later"
+#endif
+
+/* --- Disabled: CMake configuration not complete yet ---
+/// Major version number.
+#define SOCKIFY_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+
+/// Minor version number.
+#define SOCKIFY_VERSION_MINOR @PROJECT_VERSION_MINOR@
+
+/// Patch version number.
+#define SOCKIFY_VERSION_PATCH @PROJECT_VERSION_PATCH@
+
+/// Combined version number (MMmmpp).
+#define SOCKIFY_VERSION (SOCKIFY_VERSION_MAJOR * 10000 + SOCKIFY_VERSION_MINOR * 100 + SOCKIFY_VERSION_PATCH)
+
+/// Human-readable version string.
+#define SOCKIFY_VERSION_STRING "@PROJECT_VERSION@"
+*/
+
+// Compiler detection
+#if defined(__clang__)
+#  define SOCKIFY_COMPILER_CLANG 1
+#  define SOCKIFY_COMPILER_GCC   0
+#  define SOCKIFY_COMPILER_MSVC  0
+#elif defined(__GNUC__) || defined(__GNUG__)
+#  define SOCKIFY_COMPILER_CLANG 0
+#  define SOCKIFY_COMPILER_GCC   1
+#  define SOCKIFY_COMPILER_MSVC  0
+#elif defined(_MSC_VER)
+#  define SOCKIFY_COMPILER_CLANG 0
+#  define SOCKIFY_COMPILER_GCC   0
+#  define SOCKIFY_COMPILER_MSVC  1
+#else
+#  define SOCKIFY_COMPILER_CLANG 0
+#  define SOCKIFY_COMPILER_GCC   0
+#  define SOCKIFY_COMPILER_MSVC  0
+#endif
+
+// Platform detection
+#if defined(_WIN32) || defined(_WIN64)
+#  define SOCKIFY_PLATFORM_WINDOWS 1
+#else
+#  define SOCKIFY_PLATFORM_WINDOWS 0
+#endif
+
+#if defined(__unix__) || defined(__APPLE__)
+#  define SOCKIFY_PLATFORM_UNIX 1
+#else
+#  define SOCKIFY_PLATFORM_UNIX 0
+#endif
+
+// Visibility and linkage
+#if SOCKIFY_PLATFORM_WINDOWS
+#  if defined(SOCKIFY_BUILD_DLL)
+/// Export public symbols when building libsockify.
+#    define SOCKIFY_EXPORT __declspec(dllexport)
+#  else
+/// Import public symbols when consuming libsockify.
+#    define SOCKIFY_EXPORT __declspec(dllimport)
+#  endif
+/// Symbols hidden by default on Windows.
+#  define SOCKIFY_HIDDEN
+#else
+/// Marks a symbol as exported (visible).
+#  define SOCKIFY_EXPORT __attribute__((visibility("default")))
+/// Marks a symbol as hidden.
+#  define SOCKIFY_HIDDEN __attribute__((visibility("hidden")))
+#endif
+
+// Inlining and optimization hints
+#if SOCKIFY_COMPILER_GCC || SOCKIFY_COMPILER_CLANG
+#  define SOCKIFY_ALWAYS_INLINE   inline __attribute__((always_inline))
+#  define SOCKIFY_NOINLINE        __attribute__((noinline))
+#  define SOCKIFY_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#  define SOCKIFY_LIKELY(x)       __builtin_expect(!!(x), 1)
+#  define SOCKIFY_UNLIKELY(x)     __builtin_expect(!!(x), 0)
+#elif SOCKIFY_COMPILER_MSVC
+#  define SOCKIFY_ALWAYS_INLINE   __forceinline
+#  define SOCKIFY_NOINLINE        __declspec(noinline)
+#  define SOCKIFY_DEPRECATED(msg) __declspec(deprecated(msg))
+#  define SOCKIFY_LIKELY(x)       (x)
+#  define SOCKIFY_UNLIKELY(x)     (x)
+#else
+#  define SOCKIFY_ALWAYS_INLINE inline
+#  define SOCKIFY_NOINLINE
+#  define SOCKIFY_DEPRECATED(msg)
+#  define SOCKIFY_LIKELY(x)   (x)
+#  define SOCKIFY_UNLIKELY(x) (x)
+#endif
+
+// [[nodiscard]]
+#if defined(__has_cpp_attribute)
+#  if __has_cpp_attribute(nodiscard)
+#    define SOCKIFY_NODISCARD [[nodiscard]]
+#  else
+#    define SOCKIFY_NODISCARD
+#  endif
+#else
+#  define SOCKIFY_NODISCARD
+#endif
+
+#endif
