@@ -4,10 +4,10 @@
 // SPDX-License-Identifier: BSD 3-Clause "New" or "Revised" License
 //
 //===----------------------------------------------------------------------===//
-//
-// \file
-// Nothing but a placeholder.
-//
+///
+/// \file
+/// Nothing but a placeholder.
+///
 //===----------------------------------------------------------------------===//
 
 #ifdef _WIN32

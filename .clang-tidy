@@ -48,8 +48,12 @@ CheckOptions:
   ## readability-identifier-naming
   - key:             readability-identifier-naming.ClassCase
     value:           CamelCase
+  - key:             readability-identifier-naming.ClassIgnoredRegexp
+    value:           '^(socket_category_impl|socket_error)$'
   - key:             readability-identifier-naming.EnumCase
     value:           CamelCase
+  - key:             readability-identifier-naming.EnumIgnoredRegexp
+    value:           '^socket_errc$'
   - key:             readability-identifier-naming.UnionCase
     value:           CamelCase
   - key:             readability-identifier-naming.FunctionCase
@@ -90,7 +94,7 @@ CheckOptions:
   ## cppcoreguidelines-special-member-functions
   - key:             cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
     value:           1
-  - key:             cppcoreguidelines-special-member-functions.AllowMissingMoveFunctionsWhenCopyIsDeleted
+  - key:             cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions
     value:           1
   - key:             cppcoreguidelines-special-member-functions.AllowImplicitlyDeletedCopyOrMove
     value:           0
