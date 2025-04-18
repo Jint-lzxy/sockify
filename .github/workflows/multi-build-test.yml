@@ -6,7 +6,13 @@
 # Build artifacts are uploaded only if the build succeeds, and the test job runs only after a successful build.
 
 name: build and test project (multi)
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - beta  # Trigger only when pushing to the 'beta' branch
+  pull_request:
+    branches:
+      - '*'  # Trigger on any PR to any branch
 
 permissions:
   contents: read # Default everything to read-only
