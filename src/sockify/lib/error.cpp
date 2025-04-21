@@ -16,7 +16,10 @@ namespace sockify {
 // sockify::socket_category implementation
 namespace details {
 
-const char* socket_category_impl::name() const noexcept { return "sockify::socket_category"; }
+const char* socket_category_impl::name() const noexcept
+{
+  return "sockify::socket_category";
+}
 
 std::string socket_category_impl::message(int ev) const
 {
@@ -161,14 +164,22 @@ bool socket_category_impl::equivalent(const std::error_code& code, int condition
 
 } // namespace details
 
-std::error_code make_error_code(socket_errc ec) noexcept { return {static_cast<int>(ec), socket_category()}; }
+std::error_code make_error_code(socket_errc ec) noexcept
+{
+  return {static_cast<int>(ec), socket_category()};
+}
 
-std::error_condition make_error_condition(socket_errc ec) noexcept { return {static_cast<int>(ec), socket_category()}; }
+std::error_condition make_error_condition(socket_errc ec) noexcept
+{
+  return {static_cast<int>(ec), socket_category()};
+}
 
 //===----------------------------------------------------------------------===//
 // sockify::socket_error implementation
-socket_error::socket_error(const std::string& what_arg, std::error_code ec) : std::system_error(ec, what_arg) {}
+socket_error::socket_error(const std::string& what_arg, std::error_code ec) : std::system_error(ec, what_arg)
+{}
 
-socket_error::socket_error(const char* what_arg, std::error_code ec) : std::system_error(ec, what_arg) {}
+socket_error::socket_error(const char* what_arg, std::error_code ec) : std::system_error(ec, what_arg)
+{}
 
 } // namespace sockify

@@ -11,7 +11,10 @@
 
 using namespace sockify;
 
-static std::error_code to_std_errc(std::errc ec) { return std::make_error_code(ec); }
+static std::error_code to_std_errc(std::errc ec)
+{
+  return std::make_error_code(ec);
+}
 
 TEST_CASE("socket_errc traits and conversions", "[error][traits]")
 {
@@ -69,7 +72,10 @@ TEST_CASE("equivalent() works as expected", "[error][equivalence]")
   {
     for (int i = 0; i <= static_cast<int>(LAST_SOCKET_ERRC); ++i) {
       auto code = make_error_code(static_cast<socket_errc>(i));
-      DYNAMIC_SECTION("Code " << i << " equivalent to itself") { CHECK(socket_category().equivalent(code, i)); }
+      DYNAMIC_SECTION("Code " << i << " equivalent to itself")
+      {
+        CHECK(socket_category().equivalent(code, i));
+      }
     }
   }
 

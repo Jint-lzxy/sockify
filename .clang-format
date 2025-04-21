@@ -43,7 +43,7 @@ PackConstructorInitializers: NextLine
 AllowAllArgumentsOnNextLine: true
 AllowShortLambdasOnASingleLine: All
 AllowShortBlocksOnASingleLine: Empty
-AllowShortFunctionsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: false
 AllowAllParametersOfDeclarationOnNextLine: true
 AlwaysBreakTemplateDeclarations: Yes
 BreakInheritanceList: BeforeColon
