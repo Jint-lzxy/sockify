@@ -18,12 +18,12 @@ endfunction()
 
 # Leaf filenames only
 set(LIBSOCKIFY_SOURCE_FILES error.cpp)
-set(NC_SOURCE_FILES main.cpp)
+set(CLI_SOURCE_FILES main.cpp)
 
 # Expand to full paths
 expand_sources(LIBSOCKIFY_SOURCES "${abs_top_srcdir}/lib"
                LIBSOCKIFY_SOURCE_FILES)
-expand_sources(NC_SOURCES "${abs_top_srcdir}/cli" NC_SOURCE_FILES)
+expand_sources(CLI_SOURCES "${abs_top_srcdir}/cli" CLI_SOURCE_FILES)
 
 # -----------------------------------------------------------------------------
 # Library Target
@@ -48,6 +48,6 @@ set(SOCKIFY_CLI_TARGET
     CACHE STRING "Name of the CLI target")
 
 if(SOCKIFY_BUILD_CLI)
-  add_executable(${SOCKIFY_CLI_TARGET} ${NC_SOURCES})
+  add_executable(${SOCKIFY_CLI_TARGET} ${CLI_SOURCES})
   target_link_libraries(${SOCKIFY_CLI_TARGET} PRIVATE ${LIBSOCKIFY_TARGET})
 endif()
