@@ -70,7 +70,7 @@ CheckOptions:
     value:           CamelCase
   - key:             readability-identifier-naming.TemplateParameterIgnoredRegexp
     value:           '(.*\:auto|expr-type)' # This is https://llvm.org/PR56464
-  - key:             readability-identifier-naming.alueTemplateParameterCase
+  - key:             readability-identifier-naming.ValueTemplateParameterCase
     value:           CamelCase
   - key:             readability-identifier-naming.IgnoreMainLikeFunctions
     value:           1
