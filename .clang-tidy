@@ -100,3 +100,6 @@ CheckOptions:
     value:           1
   - key:             cppcoreguidelines-special-member-functions.AllowImplicitlyDeletedCopyOrMove
     value:           0
+  ## performance-enum-size
+  - key:             performance-enum-size.EnumIgnoreList
+    value:           '^AddressFamily$' # Its size cannot be determined portably

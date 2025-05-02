@@ -16,7 +16,6 @@
 
 #include "config.hpp"
 
-#include <cstdint>
 #include <ostream>
 #include <string>
 #include <sys/socket.h>
@@ -62,7 +61,7 @@ constexpr bool is_one_of_value(std::underlying_type_t<E> u) noexcept
 ///
 /// These represent the os-specific integer codes assigned to each address
 /// type, which are necessary for interfacing with socket functions.
-enum class AddressFamily : std::uint8_t { Unknown = AF_UNSPEC, IPv4 = AF_INET, IPv6 = AF_INET6, Unix = AF_UNIX };
+enum class AddressFamily { Unknown = AF_UNSPEC, IPv4 = AF_INET, IPv6 = AF_INET6, Unix = AF_UNIX };
 
 /// Address Base Class.
 ///

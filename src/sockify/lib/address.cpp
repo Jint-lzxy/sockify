@@ -10,6 +10,7 @@
 #include <cstring>
 #include <memory>
 #include <ostream>
+#include <sys/socket.h>
 #include <utility>
 
 namespace sockify {
@@ -33,6 +34,7 @@ Address& Address::operator=(const Address& other) noexcept
   address_family = other.address_family;
   return *this;
 }
+
 Address::Address(Address&& other) noexcept : address{other.address}, address_family{other.address_family}
 {
   other.reset();
