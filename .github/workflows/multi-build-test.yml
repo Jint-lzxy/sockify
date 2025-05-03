@@ -34,6 +34,14 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      - name: Setup dependencies
+        run: |
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo apt update && sudo apt install -y catch2
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            brew install catch2
+          fi
+
       - name: Setup cmake and build
         id: cmake_build
         uses: threeal/cmake-action@v2
@@ -43,6 +51,7 @@ jobs:
           run-build: true
           options: |
             SOCKIFY_DEVELOPMENT_BUILD=ON
+            SOCKIFY_USE_CATCH2=ON
             SOCKIFY_BUILD_DOCS=OFF
 
       - name: Upload build artifacts
