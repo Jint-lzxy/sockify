@@ -7,6 +7,7 @@
 
 #include "address.hpp"
 
+#include <cassert>
 #include <cstring>
 #include <memory>
 #include <ostream>
@@ -18,10 +19,10 @@ namespace sockify {
 Address::Address(const_reference address) noexcept : address{address}, address_family{address.ss_family}
 {
   if (!details::is_one_of<address_family_type,
+                          address_family_type::Unix,
                           address_family_type::Unknown,
                           address_family_type::IPv4,
-                          address_family_type::IPv6,
-                          address_family_type::Unix>(address_family))
+                          address_family_type::IPv6>(address_family))
     address_family = address_family_type::Unknown;
 }
 
@@ -54,14 +55,17 @@ Address& Address::operator=(Address&& other) noexcept
 }
 
 // accessors
-// Return the address of the socket.
 Address::const_pointer Address::value() const noexcept
 {
+  assert(has_value());
+
   return std::addressof(address);
 }
 
 Address::address_family_type Address::family() const noexcept
 {
+  assert(has_value());
+
   return address_family;
 }
 
@@ -84,6 +88,8 @@ void Address::reset() noexcept
 
 int Address::compare(const Address& other) const noexcept
 {
+  assert(has_value());
+
   const socklen_t socksize{size()};
   const socklen_t other_socksize{other.size()};
 
@@ -96,16 +102,18 @@ int Address::compare(const Address& other) const noexcept
 
 void Address::swap(Address& other) noexcept
 {
+  assert(typeid(*this) == typeid(other));
+
   std::swap(address, other.address);
   std::swap(address_family, other.address_family);
   do_swap(other);
 }
 
-// friend-based methods
+// friend methods
 
 bool operator==(const Address& lhs, const Address& rhs)
 {
-  return lhs.address_family == rhs.address_family && lhs.compare(rhs) == 0;
+  return (!lhs && !rhs) || (lhs.address_family == rhs.address_family && lhs.compare(rhs) == 0);
 }
 
 bool operator!=(const Address& lhs, const Address& rhs)
@@ -144,10 +152,10 @@ void swap(Address& lhs, Address& rhs) noexcept
   lhs.swap(rhs);
 }
 
-} // namespace sockify
-
-std::ostream& operator<<(std::ostream& strm, const sockify::Address& addr)
+std::ostream& operator<<(std::ostream& strm, const Address& addr)
 {
   strm << addr.to_string();
   return strm;
 }
+
+} // namespace sockify

@@ -102,4 +102,4 @@ CheckOptions:
     value:           0
   ## performance-enum-size
   - key:             performance-enum-size.EnumIgnoreList
-    value:           '^AddressFamily$' # Its size cannot be determined portably
+    value:           '^AddressFamily$' # Platform-dependent values make size non-portable
