@@ -22,7 +22,7 @@ include(Catch)
 set(LIBSOCKIFY_TEST_TARGET
     "${LIBSOCKIFY_TARGET}_tests"
     CACHE STRING "Name of the test target for the library")
-set(LIBSOCKIFY_TEST_SOURCES test_error.cpp)
+set(LIBSOCKIFY_TEST_SOURCES test_error.cpp test_address.cpp)
 
 add_executable(${LIBSOCKIFY_TEST_TARGET} ${LIBSOCKIFY_TEST_SOURCES})
 target_link_libraries(${LIBSOCKIFY_TEST_TARGET} PRIVATE ${LIBSOCKIFY_TARGET}
