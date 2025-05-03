@@ -25,8 +25,8 @@ TEST_CASE("Default‐constructed address has empty path and string", "[unixaddre
 {
   const UnixDomainAddress addr;
 
-    CHECK(addr.to_string().empty());
-    CHECK(addr.path().u8string().empty());
+  CHECK(addr.to_string().empty());
+  CHECK(addr.path().u8string().empty());
 }
 
 TEST_CASE("Construct from valid filesystem::path", "[unixaddress][construction]")
@@ -74,7 +74,7 @@ TEST_CASE("Copy and move semantics", "[unixaddress][copy][move]")
   SECTION("Copy constructor")
   {
     const UnixDomainAddress orig{path};
-        // NOLINTNEXTLINE(performance-unnecessary-copy-initialization): This copy is intentional.
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization): This copy is intentional.
     const UnixDomainAddress copy{orig};
     CHECK(copy.path() == path);
   }
@@ -126,11 +126,8 @@ TEST_CASE("path() accessor", "[unixaddress][accessor]")
 TEST_CASE("to_string() mirrors path().u8string()", "[unixaddress][tostring]")
 {
   const fs::path path = "/tmp/another.sock";
-  SECTION("to_string equals u8string")
-  {
     const UnixDomainAddress addr{path};
     CHECK(addr.to_string() == path.u8string());
-  }
 }
 
 TEST_CASE("Comparison operators reflect lexicographical path ordering", "[unixaddress][compare]")
@@ -158,27 +155,31 @@ TEST_CASE("Comparison operators reflect lexicographical path ordering", "[unixad
 
 TEST_CASE("swap exchanges socket_path", "[unixaddress][swap]")
 {
-  SECTION("swap function")
-  {
     UnixDomainAddress lhs{fs::path("one.sock")};
     UnixDomainAddress rhs{fs::path("two.sock")};
     swap(lhs, rhs);
     CHECK(lhs.path() == fs::path("two.sock"));
     CHECK(rhs.path() == fs::path("one.sock"));
-  }
+}
+
+TEST_CASE("Construction from AF_UNIX value_type", "[unixaddress][construction][valid]")
+{
+    UnixDomainAddress::value_type raw_addr{};
+    std::memset(&raw_addr, 0, sizeof(raw_addr));
+    auto& unix      = reinterpret_cast<sockaddr_un&>(raw_addr);
+    unix.sun_family = AF_UNIX;
+
+    const UnixDomainAddress addr{raw_addr};
+    CHECK(addr.has_value());
 }
 
 TEST_CASE("Construct from non-AF_UNIX value_type resets to empty", "[unixaddress][value_type]")
 {
-  SECTION("AF_INET in value_type")
-  {
     UnixDomainAddress::value_type raw_addr{};
     std::memset(&raw_addr, 0, sizeof(raw_addr));
     auto& in4      = reinterpret_cast<sockaddr_in&>(raw_addr);
     in4.sin_family = AF_INET;
 
-    const UnixDomainAddress addr(raw_addr);
-    CHECK(addr.path().u8string().empty());
-    CHECK(addr.to_string().empty());
-  }
+    const UnixDomainAddress addr{raw_addr};
+    CHECK_FALSE(addr.has_value());
 }
