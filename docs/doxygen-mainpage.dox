@@ -3,12 +3,43 @@
 /// @section main_intro Introduction
 /// Welcome to Sockify.
 ///
-/// This documentation describes both the private and public interface of Sockify.
-/// There are no instructions here on how to use Sockify, only the APIs
-/// that make up the software.
+/// Sockify is a modern, cross-platform C++17 socket library that provides a
+/// versatile and efficient API for network communication.
 ///
-/// @section main_caveat Caveat
+/// This documentation describes both the private and public interface of Sockify.
+/// There are no instructions here on how to use Sockify, only the APIs that make up
+/// the software.
+///
+/// Advanced features are modular. Secure connections are available via optional
+/// integration with [OpenSSL](https://github.com/openssl/openssl) or
+/// [MbedTLS](https://github.com/Mbed-TLS/mbedtls). If
+/// [libevent](https://github.com/libevent/libevent) is enabled at compile time,
+/// Sockify supports event-driven I/O with minimal overhead. Otherwise, it falls back
+/// to a simpler default model.
+///
+/// Sockify uses modern C++ idioms — such as smart pointers and RAII — to manage
+/// resources safely and efficiently. Errors can be reported via `std::error_code`
+/// without relying on exceptions. Features like SSL and event loops are opt-in to
+/// avoid unnecessary overhead.
+///
+/// @subsection main_caveats Caveats
+/// @subsubsection caveat_swap_general General
 /// This documentation is generated directly from the source code with doxygen.
-/// Since Sockify is constantly under active development, what you're about to
-/// read is (probably) out of date! However, it may still be useful since certain
-/// portions of Sockify are very stable.
+/// Since Sockify is constantly under active development, what you're about to read
+/// is (probably) out of date! However, it may still be useful since certain portions
+/// of Sockify are very stable.
+///
+/// @subsubsection caveat_thread_safety Thread Safety
+/// @note Sockify does **not** implement thread-safe sockets by default. If you are
+/// writing a multi-threaded application, ensure each socket is confined to a single
+/// thread, or use external synchronization mechanisms.
+///
+/// @subsubsection caveat_swap_safety Swap Safety Requirements
+/// @attention When invoking `swap(Type& other) noexcept` or the non-member
+/// `friend void swap(Type& lhs, Type& rhs) noexcept` in this library, it is the
+/// caller's responsibility to ensure that both objects are of the same dynamic type.
+/// **If the objects have mismatched dynamic types, the behavior is undefined.**
+/// This precondition is enforced (in debug builds) via an assertion rather than by
+/// throwing an exception, in order to maintain the `noexcept` guarantee of the swap
+/// operation. **DO NOT OVERLOOK THIS REQUIREMENT**, as swapping objects of different
+/// types may result in data corruption, resource mismanagement or undefined behavior.
