@@ -128,12 +128,12 @@ TEST_CASE("Unrecognized family yields empty state", "[address][unknown]")
 TEST_CASE("Copy and move semantics", "[address][copymove]")
 {
   auto v6 = make_v6("::1", 4321);
-  TestAddress orig{v6, "::1", sizeof(sockaddr_in6)};
+  const TestAddress orig{v6, "::1", sizeof(sockaddr_in6)};
 
   SECTION("Copy constructor")
   {
     // NOLINTNEXTLINE(performance-unnecessary-copy-initialization): This copy is intentional.
-    TestAddress copy{orig};
+    const TestAddress copy{orig};
     CHECK(copy.has_value());
     CHECK(copy.family() == AddressFamily::IPv6);
     CHECK(copy.size() == orig.size());
@@ -158,7 +158,7 @@ TEST_CASE("Copy and move semantics", "[address][copymove]")
   SECTION("Move constructor")
   {
     TestAddress temp = orig;
-    TestAddress moved{std::move(temp)};
+    const TestAddress moved{std::move(temp)};
     CHECK_FALSE(temp.has_value());
     CHECK(moved.has_value());
     CHECK(moved.to_string() == "::1");
@@ -245,7 +245,7 @@ TEST_CASE("Equality and ordering", "[address][compare]")
   SECTION("Operators and compare() consistency")
   {
     auto verify = [&](auto& lhs, auto& rhs) {
-      int ret = lhs.compare(rhs);
+      const int ret = lhs.compare(rhs);
       CHECK((ret < 0) == (lhs < rhs));
       CHECK((ret == 0) == (lhs == rhs));
       CHECK((ret > 0) == (lhs > rhs));
@@ -287,7 +287,7 @@ TEST_CASE("Swap support", "[address][swap]")
 TEST_CASE("Extractor support", "[address][stream]")
 {
   auto v4 = make_v4("203.0.113.7", 8080);
-  TestAddress addr{v4, "203.0.113.7", sizeof(sockaddr_in)};
+  const TestAddress addr{v4, "203.0.113.7", sizeof(sockaddr_in)};
 
   std::ostringstream os;
   os << addr;
