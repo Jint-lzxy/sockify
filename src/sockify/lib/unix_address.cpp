@@ -8,14 +8,38 @@
 #include "unix_address.hpp"
 
 #include "address.hpp"
+#include "config.hpp"
 
+#include <cstring>
 #include <filesystem>
+#include <iterator>
+#include <stdexcept>
+#include <string>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <utility>
 
-namespace sockify {
+// Anonymous namespace for misc helpers, should not be exported from this file
+namespace {
 
-// Do I need to make sure that the socket itself is a sockaddr_un, or is that implicit?
+sockaddr_storage SOCKIFY_HIDDEN make_unix(const std::string& path)
+{
+  sockaddr_storage addr{};
+  std::memset(&addr, 0, sizeof(addr));
+
+  auto& un_addr       = reinterpret_cast<sockaddr_un&>(addr);
+  const auto max_size = std::size(un_addr.sun_path);
+  un_addr.sun_family  = AF_UNIX;
+  std::strncpy(un_addr.sun_path, path.c_str(), max_size);
+
+  if (un_addr.sun_path[max_size - 1] != '\0')
+    throw std::overflow_error("Path size exceeds available buffer size");
+  return addr;
+}
+
+} // namespace
+
+namespace sockify {
 
 UnixDomainAddress::UnixDomainAddress(const value_type& address) noexcept : Address{address}
 {
@@ -23,18 +47,8 @@ UnixDomainAddress::UnixDomainAddress(const value_type& address) noexcept : Addre
     reset();
 }
 
-// FIXME: update this ctor
-// memset the ss variable;
-// initialize the storage, by casting it to sockaddr_un
-// and fill in the family and path (extracted from `path` argument)
 UnixDomainAddress::UnixDomainAddress(std::filesystem::path path)
-    : Address([] {
-        sockaddr_storage ss{};
-        ss.ss_family = static_cast<sa_family_t>(
-            AddressFamily::Unix); // use the given address struct, cast to sa_family_t to match types.
-        return ss;
-      }()),
-      socket_path(std::move(path))
+    : Address{make_unix(path.u8string())}, socket_path{std::move(path)}
 {}
 
 const std::filesystem::path& UnixDomainAddress::path() const&
@@ -49,7 +63,7 @@ std::filesystem::path UnixDomainAddress::path() &&
 
 socklen_t UnixDomainAddress::size() const noexcept
 {
-  return sizeof(*Address::value());
+  return sizeof(sockaddr_un);
 }
 
 UnixDomainAddress::string_type UnixDomainAddress::to_string() const

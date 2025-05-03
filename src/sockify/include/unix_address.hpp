@@ -18,6 +18,7 @@
 #include "config.hpp"
 
 #include <filesystem>
+#include <sys/socket.h>
 
 namespace sockify {
 
