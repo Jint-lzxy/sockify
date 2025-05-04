@@ -1,3 +1,10 @@
+//===-- test_address.cpp ----------------------------------------*- C++ -*-===//
+//
+// Part of the Sockify Project, under the BSD 3-Clause License.
+// SPDX-License-Identifier: BSD-3-Clause
+//
+//===----------------------------------------------------------------------===//
+
 #include "address.hpp"
 
 #include <arpa/inet.h>
