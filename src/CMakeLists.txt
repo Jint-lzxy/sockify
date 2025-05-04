@@ -17,7 +17,7 @@ endfunction()
 # -----------------------------------------------------------------------------
 
 # Leaf filenames only
-set(LIBSOCKIFY_SOURCE_FILES error.cpp address.cpp)
+set(LIBSOCKIFY_SOURCE_FILES error.cpp address.cpp unix_address.cpp)
 set(CLI_SOURCE_FILES main.cpp)
 
 # Expand to full paths
