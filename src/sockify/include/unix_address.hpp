@@ -26,7 +26,7 @@ namespace sockify {
 /// Represents a Unix domain socket address. Encapsulates a filesystem path for
 /// Unix domain socket addressing, typically used for IPC on the same host.
 /// Provides a specialized implementation of the Address interface.
-class UnixDomainAddress final : public Address {
+class SOCKIFY_EXPORT UnixDomainAddress final : public Address {
 public:
   /// Constructs an empty Unix domain address. has_value() returns `false`.
   /// \note Accessing path-related accessors on an empty address is undefined.
@@ -39,6 +39,7 @@ public:
 
   /// Constructs a Unix domain address from a filesystem path.
   /// \param path  Filesystem path to the Unix domain socket file.
+  /// \throws std::overflow_error if the path is too long to fit in the address structure.
   /// \post The address family is set to `AddressFamily::Unix`.
   explicit UnixDomainAddress(std::filesystem::path path);
 
