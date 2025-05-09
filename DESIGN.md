@@ -121,7 +121,7 @@ The set of enumerators may be extended in future versions to include additional 
 
 ### `Address`
 
-The `Address` class encapsulates a protocol-agnostic network address. It serves as a common base for address families such as IPv4, IPv6 and Unix domain sockets. Concrete derived classes implement address-specific behavior while exposing a unified interface for networking operations. Internally, all address data is stored using `sockaddr_storage`, aliased as its `value_type`. This class is designed to be extended and not instantiated directly.
+The `Address` class encapsulates a protocol-agnostic network address. It serves as a common base for address families such as IPv4, IPv6 and Unix domain sockets. Concrete derived classes implement address-specific behavior while exposing a unified interface for networking operations. Internally, all address data is stored using `sockaddr_storage`, aliased as its `value_type`. All constructors are protected. This class is abstract and not intended to be instantiated directly.
 
 #### Member Types
 
@@ -137,10 +137,10 @@ The `Address` class encapsulates a protocol-agnostic network address. It serves 
 
 #### Data Members
 
-| Name      | Type                  | Explanation                                         |
-| --------- | --------------------- | --------------------------------------------------- |
-| `address` | `value_type`          | The raw network address in a system-defined format. |
-| `family`  | `address_family_type` | The family (or domain) of the address.              |
+| Name             | Type                  | Explanation                                         |
+| ---------------- | --------------------- | --------------------------------------------------- |
+| `address`        | `value_type`          | The raw network address in a system-defined format. |
+| `address_family` | `address_family_type` | The family (or domain) of the address.              |
 
 #### Member Functions
 
@@ -626,7 +626,8 @@ public:
   ~UnixDomainAddress() override;
 
   // Path Accessor
-  std::filesystem::path path() const;
+  const std::filesystem::path& path() const&;
+  std::filesystem::path path() &&;
 
   // Override virtual functions
   socklen_t size() const noexcept override;
@@ -634,6 +635,7 @@ public:
 
 protected:
   void do_swap(Address& other) noexcept override;
+  int compare(const Address& other) const noexcept override;
 
 private:
   std::filesystem::path socket_path; // Cached socket file path
@@ -679,6 +681,8 @@ explicit UnixDomainAddress(std::filesystem::path path);
 - **Effects:**
   - Constructs a `UnixDomainAddress` object from a Unix domain socket file path.
   - The address is constructed using the path provided, and the family is set to `AddressFamily::Unix`.
+- **Exceptions:**
+  - `std::overflow_error`: Thrown if the path is too long to fit in the address structure.
 
 4. **Copy Constructor**
 
@@ -740,7 +744,8 @@ UnixDomainAddress& operator=(UnixDomainAddress&& other) noexcept;
 > Calling any accessors on an `UnixDomainAddress` object while it is in its empty state (e.g., after `reset()` with no arguments) results in undefined behavior.
 
 ```cpp
-std::filesystem::path path() const;
+const std::filesystem::path& path() const&;
+std::filesystem::path path() &&;
 ```
 
 - **Returns:**
@@ -753,9 +758,11 @@ std::filesystem::path path() const;
 socklen_t size() const noexcept override;
 ```
 
+- **Effects:**
+  - Provides access to the underlying Unix domain socket file path.
 - **Returns:**
-  - The number of bytes occupied by the stored socket address structure.
-  - Returns `sizeof(sockaddr_un)` on most platforms.
+  - For `const&`: A constant reference to the stored Unix domain socket path.
+  - For `&&`: A `path` object, moved from the internal storage.
 - **Complexity:** Constant.
 
 ```cpp
@@ -772,6 +779,16 @@ void do_swap(Address& other) noexcept override;
 
 - **Effects:**
   - Swaps the internal state of the current object (`*this`) with the state of the `other` `UnixDomainAddress` object.
+- **Complexity:** Constant.
+
+```cpp
+int compare(const Address& other) const noexcept override;
+```
+
+- **Returns:**
+  - A negative value if `*this` is less than other, 0 if equal, or a positive value if greater.
+- **Notes:**
+  - Used for ordering and equality comparisons of addresses.
 - **Complexity:** Constant.
 
 ---
