@@ -1241,93 +1241,189 @@ The `Socket` class defines a unified, protocol-agnostic interface for synchronou
 
 #### Member Functions
 
-1. **Destructor**
+1. **Constructors (Protected)**
+
+```cpp
+Socket() noexcept;
+```
+
+- **Effects:**
+  - Constructs an empty `Socket` object. The internal native handle is invalid, and `valid()` returns `false`.
+- **Complexity:** Constant.
+
+```cpp
+Socket(address_family_type family, native_handle_type handle, bool inheritable = false);
+```
+
+- **Effects:**
+  - Constructs a `Socket` object by wrapping an existing native socket handle `handle`, with the specified `family`.
+  - The ownership of the handle is assumed, and the `inheritable` flag is set as specified.
+- **Complexity:** Constant.
+
+```cpp
+Socket(const Socket& other);
+```
+
+- **Effects:**
+  - Constructs a `Socket` object as a copy of `other`.
+  - The internal native handle is duplicated using the appropriate operating system API.
+  - The `inheritable` flag and any relevant timeout settings are copied.
+- **Complexity:** Depends on OS duplication overhead; typically constant.
+
+```cpp
+Socket(Socket&& other) noexcept;
+```
+
+- **Effects:**
+  - Constructs a `Socket` object by acquiring ownership of the internal state of `other`.
+  - After the move, `other` is left in an invalid state such that `other.valid()` returns `false`.
+- **Complexity:** Constant.
+
+2. **Assignment Operators (Protected)**
+
+```cpp
+Socket& operator=(const Socket& other);
+```
+
+- **Effects:**
+  - Assigns the contents of `other` to `*this`.
+  - The internal handle is duplicated using the appropriate operating system API.
+  - Existing resources in `*this` are released before assignment.
+  - The `inheritable` flag and any relevant timeout settings are copied.
+- **Returns:**
+  - `*this`.
+- **Complexity:** Depends on OS duplication and cleanup overhead; typically constant.
+
+```cpp
+Socket& operator=(Socket&& other) noexcept;
+```
+
+- **Effects:**
+  - Transfers ownership of the internal handle and state from `other` to `*this`.
+  - Existing resources in `*this` are released before the transfer.
+  - After the move, `other.valid()` returns `false`.
+- **Returns:**
+  - `*this`.
+- **Complexity:** Constant.
+
+3. **Destructor**
 
 ```cpp
 virtual ~Socket();
 ```
 
 - **Effects:**
-  - Destroys the `Socket` object, releasing any associated resources. This is a virtual destructor to ensure proper cleanup when derived classes are destroyed.
+  - If the socket is still open, calls `close()`.
+  - Releases all resources associated with this object.
+- **Complexity:** Constant
 
-2. **Operations**
+4. **Observers**
+
+```cpp
+explicit operator bool() const noexcept;
+bool valid() const noexcept;
+```
+
+- **Effects:**
+  - Both forms check whether `native_handle` currently refers to a valid socket.
+- **Returns:**
+  - `true` if the socket holds a valid (non‑released, non‑closed) handle; `false` otherwise.
+- **Complexity:** Constant
+
+5. **Operations**
 
 > [!NOTE]
 > For each member function that may throw a `socket_error` (or other exceptions), a non-throwing overload is provided. These overloads accept an additional parameter of type `std::error_code& ec` (placed before any default arguments when applicable) that is used to report errors instead of throwing an exception.
 
 ```cpp
-virtual void bind(const address_type& address) = 0;
-virtual void bind(const address_type& address, std::error_code& ec) noexcept = 0;
+void close() noexcept;
 ```
 
 - **Effects:**
-  - Binds the socket to the specified local address. Required before calling `listen()` on server sockets.
-- **Parameters:**
-  - `address`: the local endpoint
-- **Exceptions:**
-  - `socket_error` on failure, such as if the address is already in use or the socket is invalid.
-- **Complexity:** Constant to linear, depending on internal address resolution and validation.
-
-```cpp
-virtual void connect(const address_type& address) = 0;
-virtual void connect(const address_type& address, std::error_code& ec) noexcept = 0;
-```
-
-- **Effects:**
-  - Establishes a connection to the specified remote address.
-  - If the connection is interrupted by a signal, the method waits until the connection completes, or raises an exception on timeout (see _Exceptions_), if the signal handler doesn't raise an exception and the socket is blocking or has a timeout. For non-blocking sockets, the method raises an exception if the connection is interrupted by a signal (or the exception raised by the signal handler) (see _Exceptions_).
-- **Parameters:**
-  - `address`: A valid remote socket address.
-- **Exceptions:**
-  - `socket_error` on failure like timeout, unreachable host or permission denied.
-- **Complexity:** Potentially unbounded (depends on network latency and TCP handshake).
-
-```cpp
-virtual void listen(int backlog = SOMAXCONN);
-virtual void listen(std::error_code& ec, int backlog = SOMAXCONN) noexcept;
-```
-
-- **Effects:**
-  - Marks the socket as passive, used to accept incoming connection requests.
-- **Parameters:**
-  - `backlog`: Maximum number of pending connections; defaults to `SOMAXCONN`. If this parameter is specified, it must be at least `0` (if it is lower, it is set to `0`).
-- **Exceptions:**
-  - `socket_error` on failure, such as if the socket is invalid or was not bound.
+  - If `native_handle` is valid, perform the platform‑specific `close`, then marks `native_handle` invalid.
+  - Clears `timeout` and resets `inheritable` to false.
 - **Complexity:** Constant
 
 ```cpp
-virtual std::unique_ptr<Socket> accept() = 0;
-virtual std::unique_ptr<Socket> accept(std::error_code& ec) noexcept = 0;
+native_handle_type release() noexcept;
 ```
 
 - **Effects:**
-  - Accepts a pending connection and returns a new `Socket` instance for the connection.
-- **Exceptions:**
-  - `socket_error` on failure, such as if the socket is not in listening mode or a network error occurs.
-- **Complexity:** Blocking or constant, depending on mode; may block if no pending connection exists.
-
-```cpp
-virtual void close() noexcept = 0;
-```
-
-- **Effects:**
-  - Closes the socket, invalidating its handle and releasing all associated resources.
+  - Calls `do_release()` to relinquish the underlying handle without closing it.
+  - Marks `native_handle` invalid and resets `timeout` and `inheritable`.
+  - If called on an already‑released socket, the behavior is undefined.
+- **Returns:**
+  - The previously held `native_handle`.
 - **Complexity:** Constant
 
 ```cpp
-virtual native_handle_type detach() = 0;
-virtual native_handle_type detach(std::error_code& ec) noexcept = 0;
+void bind(const address_type& address);
+void bind(const address_type& address, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
-  - Releases ownership of the underlying socket handle and returns it to the caller.
+  - Validates `address`.
+  - Calls `do_bind(address)`, which binds the socket to the specified local address. Required before calling `listen()` on server sockets.
+- **Parameters:**
+  - `address`: Local endpoint to bind to.
+  - `ec` (non‑throwing overload): receives error code on failure.
 - **Exceptions:**
-  - `socket_error` if the handle is already detached or invalid.
+  - Throwing overload: `socket_error` if binding fails (e.g. address in use, invalid socket).
+  - Non‑throwing overload: reports failure in `ec`.
+- **Complexity:** Constant to linear (depends on address resolution).
+
+```cpp
+void listen(int backlog);
+void listen(int backlog, std::error_code& ec) noexcept;
+```
+
+- **Effects:**
+  - Validates that socket is bound.
+  - Calls `do_listen(backlog)`, which marks the socket as passive, used to accept incoming connection requests.
+- **Parameters:**
+  - `backlog`: Maximum queued connection requests (clamped to >=0).
+  - `ec` (non‑throwing overload): receives error code on failure.
+- **Exceptions:**
+  - Throwing overload: `socket_error` if socket invalid or not bound.
+  - Non‑throwing overload: reports failure in `ec`.
 - **Complexity:** Constant
 
 ```cpp
-virtual void setblocking(bool would_block);
-virtual void setblocking(bool would_block, std::error_code& ec) noexcept;
+std::unique_ptr<Socket> accept();
+std::unique_ptr<Socket> accept(std::error_code& ec) noexcept;
+```
+
+- **Effects:**
+  - Blocks (or not, per mode) until an incoming connection is pending.
+  - Calls `do_accept()`, which accepts a pending connection and wraps result in `unique_ptr<Socket>`.
+- **Parameters:**
+  - `ec` (non‑throwing overload): receives error code on failure.
+- **Returns:**
+  - New `Socket` object for the accepted connection.
+- **Exceptions:**
+  - Throwing overload: `socket_error` on failure (e.g. not listening, network error).
+  - Non‑throwing overload: reports failure in `ec`; returns an empty `unique_ptr` on error.
+- **Complexity:** Blocking or constant, depending on socket mode.
+
+```cpp
+void connect(const address_type& address);
+void connect(const address_type& address, std::error_code& ec) noexcept;
+```
+
+- **Effects:**
+  - Calls `do_connect(address)`, which establishes a connection to the specified remote address.
+  - If the connection is interrupted by a signal, the method waits until the connection completes, or throws an exception on timeout (see _Exceptions_), if the signal handler doesn't raise an exception and the socket is blocking or has a timeout. For non-blocking sockets, the method throws an exception if the connection is interrupted by a signal (or the exception raised by the signal handler) (see _Exceptions_).
+- **Parameters:**
+  - `address`: Remote endpoint.
+  - `ec` (non‑throwing overload): receives error code on failure.
+- **Exceptions:**
+  - Throwing overload: `socket_error` on timeout, unreachable host or permission denied.
+  - Non‑throwing overload: reports failure in `ec`.
+- **Complexity:** Potentially unbounded (network latency/TCP handshake).
+
+```cpp
+void setblocking(bool would_block);
+void setblocking(bool would_block, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
@@ -1343,7 +1439,7 @@ virtual void setblocking(bool would_block, std::error_code& ec) noexcept;
 - **Complexity:** Constant
 
 ```cpp
-virtual bool getblocking() const noexcept;
+bool getblocking() const noexcept;
 ```
 
 - **Returns:**
@@ -1352,8 +1448,8 @@ virtual bool getblocking() const noexcept;
 - **Complexity:** Constant
 
 ```cpp
-virtual void settimeout(duration timeout);
-virtual void settimeout(duration timeout, std::error_code& ec) noexcept;
+void settimeout(duration timeout);
+void settimeout(duration timeout, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
@@ -1370,15 +1466,15 @@ virtual void settimeout(duration timeout, std::error_code& ec) noexcept;
 - **Complexity:** Constant
 
 ```cpp
-virtual std::optional<duration> gettimeout() const noexcept;
+std::optional<duration> gettimeout() const noexcept;
 ```
 
 - **Returns:**
   - The current timeout for blocking operations, or `std::nullopt` if no timeout is set.
 
 ```cpp
-virtual void setsockopt(int level, int optname, int value);
-virtual void setsockopt(int level, int optname, int value, std::error_code& ec) noexcept;
+void setsockopt(int level, int optname, int value);
+void setsockopt(int level, int optname, int value, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
@@ -1392,8 +1488,8 @@ virtual void setsockopt(int level, int optname, int value, std::error_code& ec) 
 - **Complexity:** Constant
 
 ```cpp
-virtual void setsockopt(int level, int optname, const buffer_type& option_value);
-virtual void setsockopt(int level, int optname, const buffer_type& option_value, std::error_code& ec) noexcept;
+void setsockopt(int level, int optname, const buffer_type& option_value);
+void setsockopt(int level, int optname, const buffer_type& option_value, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
@@ -1407,8 +1503,8 @@ virtual void setsockopt(int level, int optname, const buffer_type& option_value,
 - **Complexity:** Constant.
 
 ```cpp
-virtual int getsockopt(int level, int optname) const;
-virtual int getsockopt(int level, int optname, std::error_code& ec) const noexcept;
+int getsockopt(int level, int optname) const;
+int getsockopt(int level, int optname, std::error_code& ec) const noexcept;
 ```
 
 - **Returns:**
@@ -1418,8 +1514,8 @@ virtual int getsockopt(int level, int optname, std::error_code& ec) const noexce
 - **Complexity:** Constant
 
 ```cpp
-virtual buffer_type getsockopt(int level, int optname, std::size_t buflen) const;
-virtual buffer_type getsockopt(int level, int optname, std::size_t buflen, std::error_code& ec) const noexcept;
+buffer_type getsockopt(int level, int optname, std::size_t buflen) const;
+buffer_type getsockopt(int level, int optname, std::size_t buflen, std::error_code& ec) const noexcept;
 ```
 
 - **Returns:** The value of a socket option, which may involve returning raw binary data in a buffer.
@@ -1432,8 +1528,8 @@ virtual buffer_type getsockopt(int level, int optname, std::size_t buflen, std::
 - **Complexity:** Constant.
 
 ```cpp
-virtual void setinheritable(bool inheritable);
-virtual void setinheritable(bool inheritable, std::error_code& ec) noexcept;
+void setinheritable(bool inheritable);
+void setinheritable(bool inheritable, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
@@ -1445,7 +1541,7 @@ virtual void setinheritable(bool inheritable, std::error_code& ec) noexcept;
 - **Complexity:** Constant
 
 ```cpp
-virtual bool getinheritable() const noexcept;
+bool getinheritable() const noexcept;
 ```
 
 - **Returns:**
@@ -1453,8 +1549,8 @@ virtual bool getinheritable() const noexcept;
 - **Complexity:** Constant
 
 ```cpp
-virtual address_type getsockname() const = 0;
-virtual address_type getsockname(std::error_code& ec) const noexcept = 0;
+std::unique_ptr<address_type> getsockname() const = 0;
+std::unique_ptr<address_type> getsockname(std::error_code& ec) const noexcept = 0;
 ```
 
 - **Returns:**
@@ -1464,8 +1560,8 @@ virtual address_type getsockname(std::error_code& ec) const noexcept = 0;
 - **Complexity:** Constant
 
 ```cpp
-virtual address_type getpeername() const = 0;
-virtual address_type getpeername(std::error_code& ec) const noexcept = 0;
+std::unique_ptr<address_type> getpeername() const = 0;
+std::unique_ptr<address_type> getpeername(std::error_code& ec) const noexcept = 0;
 ```
 
 - **Returns:**
@@ -1475,125 +1571,172 @@ virtual address_type getpeername(std::error_code& ec) const noexcept = 0;
 - **Complexity:** Constant
 
 ```cpp
-virtual std::size_t send(const buffer_type& buf, int flags = 0);
-virtual std::size_t send(const buffer_type& buf, std::error_code& ec, int flags = 0) noexcept;
+std::size_t send(const buffer_type& buf, std::unique_ptr<address_type> dest = nullptr, int flags = 0);
+
+std::size_t
+send(const buffer_type& buf, std::error_code& ec, std::unique_ptr<address_type> dest = nullptr, int flags = 0) noexcept;
 ```
 
 - **Effects:**
-  - Sends data from `buf` to the connected peer. `flags` modifies behavior (e.g., `MSG_DONTWAIT`).
-- **Returns:**
-  - The number of bytes sent.
-- **Exceptions:**
-  - `socket_error` if the socket is not connected or sending fails.
-- **Complexity:** Linear in the size of `buf`, but depends on system buffer state and network I/O.
-
-```cpp
-virtual std::size_t sendto(const buffer_type& buf, const address_type& dest, int flags = 0);
-virtual std::size_t sendto(const buffer_type& buf, const address_type& dest, std::error_code& ec,
-                           int flags = 0) noexcept;
-```
-
-- **Effects:**
-  - Sends the data to the specified destination address (used primarily for datagram sockets).
-- **Returns:**
-  - The number of bytes sent.
-- **Exceptions:**
-  - `socket_error` on failure, such as if the socket is connected.
-- **Complexity:** Linear in the size of `buf`.
-
-```cpp
-virtual std::size_t sendall(const buffer_type& buf, int flags = 0);
-virtual std::size_t sendall(const buffer_type& buf, std::error_code& ec, int flags = 0) noexcept;
-```
-
-- **Effects:**
-  - Sends all data in `buf`, retrying if needed until all bytes are sent or an error occurs.
-- **Returns:**
-  - Total number of bytes sent.
-- **Exceptions:**
-  - `socket_error` if the socket is not connected. Will not throw if an error occurs, check the return value instead.
-- **Complexity:** Linear in the size of `buf`, possibly higher due to retries.
-
-```cpp
-virtual std::size_t sendfile(std::ifstream& file, std::streampos offset = 0, std::size_t count = 0);
-virtual std::size_t sendfile(std::ifstream& file, std::error_code& ec, std::streampos offset = 0,
-                             std::size_t count = 0) noexcept;
-
-virtual std::size_t sendfile(const std::filesystem::path& file_path, std::streampos offset = 0, std::size_t count = 0);
-virtual std::size_t sendfile(const std::filesystem::path& file_path, std::error_code& ec, std::streampos offset = 0,
-                             std::size_t count = 0) noexcept;
-```
-
-- **Effects**:
-  - Sends data from the provided file over the socket. The file must be a regular file object opened in binary mode.
-    - When a filesystem path is provided, the function opens the file in binary mode and then sends its content over the socket.
+  - If `dest` is not provided, sends the contents of `buf` to the peer currently associated with the socket (i.e., the socket must be connected).
+  - If `dest` is provided, sends the contents of `buf` to the specified address using connectionless semantics.
+  - Internally dispatches to `do_send`.
 - **Parameters:**
-  - `offset` specifies the position in the file from which to start reading. If not provided, it defaults to `0`.
-  - `count` specifies the total number of bytes to send. If not provided, the function sends the file until EOF is reached.
-- **Returns:** The total number of bytes sent.
-- **Exceptions**:
-  - `std::invalid_argument` if the file is not open, cannot be opened, or the socket is not of `SOCK_STREAM` type.
-  - `std::ios_base::failure` if an error occurs while reading from the file.
-  - `socket_error` depending on the underlying socket implementation.
-- **Notes:**:
+  - `buf`: The data buffer to be transmitted.
+  - `dest`: A unique pointer to a destination address.
+    - If provided, the data is sent to the specified address.
+    - If omitted, the data is sent to the currently connected peer.
+  - `flags`: Implementation-defined flags that influence sending behavior (e.g., `MSG_DONTWAIT`).
+  - `ec` (in non-throwing overload): Set to indicate any error that occurs during the operation.
+- **Returns:**
+  - The number of bytes successfully transmitted.
+- **Exceptions:**
+  - Throws `socket_error` if the socket is not connected and no destination is specified, or if the send operation fails.
+- **Complexity:**
+  - Linear in the size of `buf`. Actual performance may depend on network state, system buffering and transport-layer behavior.
+
+```cpp
+std::size_t sendall(const buffer_type& buf, std::unique_ptr<address_type> dest = nullptr, int flags = 0);
+std::size_t sendall(const buffer_type& buf,
+                    std::error_code& ec,
+                    std::unique_ptr<address_type> dest = nullptr,
+                    int flags                          = 0) noexcept;
+```
+
+- **Effects:**
+  - Sends all data in `buf`, retrying if needed until all bytes are sent, or an error occurs.
+  - If `dest` is provided, sends the contents of `buf` to the specified destination address using connectionless semantics.
+  - If `dest` is not provided, sends the contents of `buf` to the currently connected peer (the socket must be connected).
+- **Parameters:**
+  - `buf`: The data buffer to be transmitted.
+  - `dest`: A unique pointer to a destination address. If omitted, the data is sent to the currently connected peer. If provided, data is sent to the specified address using connectionless semantics.
+  - `flags`: Implementation-defined flags that affect sending behavior (e.g., `MSG_DONTWAIT`).
+  - `ec`: If the non-throwing overload is used, this will be set to indicate any error that occurs during the operation.
+- **Returns:**
+  - The total number of bytes successfully transmitted, which could be less than the size of `buf` if an error occurs or the send operation is incomplete.
+- **Exceptions:**
+  - Throws `socket_error` if the socket is not connected and no destination is specified, or if the send operation fails.
+  - Will **not throw** in the non-throwing overload; instead, check the return value and `ec` for error information.
+- **Complexity:**
+  - Linear in the size of `buf`, possibly higher due to retries.
+
+```cpp
+std::size_t sendfile(std::ifstream& file,
+                     std::streampos offset              = 0,
+                     std::size_t count                  = 0,
+                     std::unique_ptr<address_type> dest = nullptr,
+                     int flags                          = 0);
+std::size_t sendfile(std::ifstream& file,
+                     std::error_code& ec,
+                     std::streampos offset              = 0,
+                     std::size_t count                  = 0,
+                     std::unique_ptr<address_type> dest = nullptr,
+                     int flags                          = 0) noexcept;
+
+std::size_t sendfile(const std::filesystem::path& file_path,
+                     std::streampos offset              = 0,
+                     std::size_t count                  = 0,
+                     std::unique_ptr<address_type> dest = nullptr,
+                     int flags                          = 0);
+std::size_t sendfile(const std::filesystem::path& file_path,
+                     std::error_code& ec,
+                     std::streampos offset              = 0,
+                     std::size_t count                  = 0,
+                     std::unique_ptr<address_type> dest = nullptr,
+                     int flags                          = 0) noexcept;
+```
+
+- **Effects:**
+  - Sends data from the provided file over the socket. The file must be a regular file object opened in binary mode.
+    - If a filesystem path is provided, the function opens the file in binary mode and sends its content over the socket.
+  - If `dest` is provided, the function sends data to the specified destination address using connectionless semantics.
+  - If `dest` is omitted, the function sends data to the currently connected peer.
+- **Parameters:**
+  - `file`: The file to send data from. It must be a regular file and opened in binary mode.
+  - `file_path`: The path to the file to send data from.
+  - `offset`: The position in the file from which to start reading. If not provided, it defaults to `0`.
+  - `count`: The total number of bytes to send. If not provided, the function sends the file until EOF is reached.
+  - `dest`: A unique pointer to a destination address. If omitted, data is sent to the currently connected peer.
+  - `flags`: Implementation-defined flags that influence the sending behavior (e.g., `MSG_DONTWAIT`).
+  - `ec`: If the non-throwing overload is used, this will be set to indicate any error that occurs during the operation.
+- **Returns:**
+  - The total number of bytes successfully transmitted. The number may be less than the size of the file portion being sent if an error occurs during transmission.
+- **Exceptions:**
+  - Throws `socket_error` for:
+    - The socket being unconnected or an invalid socket type (not `SOCK_STREAM`).
+    - File-related issues that prevent data from being sent.
+    - Any error related to the network or transport layer.
+  - Will **not throw** in the non-throwing overload; instead, check the return value and `ec` for error information.
+- **Notes:**
   - This function is designed to send the entire content of the file (or a portion, if `count` is provided) in chunks over the socket.
   - Non-blocking sockets are not supported for this operation.
+- **Complexity:**
+  - Linear in the size of the file portion being sent (determined by `count`). Performance can be influenced by network conditions, system buffering, and file read behavior.
 
 ```cpp
-virtual buffer_type recv(std::size_t count, int flags = 0);
-virtual buffer_type recv(std::size_t count, std::error_code& ec, int flags = 0) noexcept;
+std::pair<buffer_type, std::unique_ptr<address_type>> recv(std::size_t count, int flags = 0);
+std::pair<buffer_type, std::unique_ptr<address_type>>
+recv(std::size_t count, std::error_code& ec, int flags = 0) noexcept;
 ```
 
 - **Effects:**
-  - Receives data from the connected peer, reading up to `count` bytes.
-  - The function blocks until at least some data is received or the connection is closed, unless the socket is non-blocking or a timeout is set.
+  - Allocates a buffer of up to `count` bytes and receives data from the socket.
+  - If the socket is connection-oriented (e.g., TCP), the source address is omitted.
+  - If the socket is connectionless (e.g., UDP), the source address of the datagram is returned.
+  - Internally invokes `do_recv`, which yields a pair: the number of bytes received and an optional source address.
 - **Parameters:**
-  - `count`: The maximum number of bytes to be received from the socket.
-  - `flags`: Optional flags that modify the behavior of the call.
+  - `count`: The maximum number of bytes to read from the socket.
+  - `flags`: Implementation-defined flags modifying receive behavior (e.g., `MSG_PEEK`, `MSG_DONTWAIT`).
+  - `ec` (in non-throwing overload): Set to indicate any error that occurs during the operation.
 - **Returns:**
-  - A buffer containing received data.
+  - A pair consisting of:
+    - A buffer containing the received data (of size up to `count` bytes).
+    - A unique pointer to the source address, if applicable. If the socket is connection-oriented, the result is empty.
 - **Exceptions:**
-  - `socket_error` on failure, such as if the socket is not connected.
-- **Complexity:** Linear in the size of received data.
+  - Throws `socket_error` if the receive operation fails.
+- **Complexity:**
+  - Linear in the number of bytes received (`O(m)`), where `m <= count`. Performance may vary depending on system buffer state and network activity.
 
 ```cpp
-virtual buffer_type recvfrom(std::size_t count, address_type& src, int flags = 0);
-virtual buffer_type recvfrom(std::size_t count, address_type& src, std::error_code& ec, int flags = 0) noexcept;
+void shutdown(int how);
+void shutdown(int how, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
-  - Receives data from the socket up to a maximum of `count` bytes.
-  - The function blocks until some data is received, the specified number of bytes is read, or the connection is closed, unless the socket is configured for non-blocking operation or a timeout is set.
-  - Fills the `src` parameter with the sender's address if possible.
+  - Effectively calls `do_shutdown(how)`.
 - **Parameters:**
-  - `count`: The maximum number of bytes to be received.
-  - `src`: Sender's address information.
-  - `flags`: Optional flags to modify the behavior of the call.
-- **Returns:**
-  - A buffer containing received data.
+  - `how`: `SHUT_RD`, `SHUT_WR`, or `SHUT_RDWR`.
+  - `ec`: error code (non‑throwing).
 - **Exceptions:**
-  - `socket_error` on failure, such as a network failure, an interrupted system call, or if the socket is invalid.
-- **Complexity:** Linear in the size of received data.
+  - Throwing overload: `socket_error` if invalid `how`.
+- **Complexity:** Constant
+
+6. **Protected Access**
 
 ```cpp
-virtual void shutdown(int how) = 0;
-virtual void shutdown(int how, std::error_code& ec) noexcept = 0;
+native_handle_type native_handle() noexcept;
 ```
 
 - **Effects:**
-  - Shuts down the socket's communication in the specified direction (`how` can be `SHUT_RD`, `SHUT_WR`, or `SHUT_RDWR`).
-- **Exceptions:**
-  - `socket_error` on failure, such as invalid `how`.
-- **Complexity:** Constant.
+  - Exposes reference to `native_handle` for derived classes.
+- **Complexity:** Constant
+
+7. **NVI Helpers (Protected)**
 
 ```cpp
-virtual native_handle_type native_handle() const noexcept;
+virtual native_handle_type do_release() noexcept                                                             = 0;
+virtual void do_shutdown(int how)                                                                            = 0;
+virtual void do_bind(const address_type& address)                                                            = 0;
+virtual void do_connect(const address_type& address)                                                         = 0;
+virtual void do_listen(int backlog)                                                                          = 0;
+virtual std::unique_ptr<Socket> do_accept()                                                                  = 0;
+virtual std::size_t do_send(const void* buf, std::size_t len, const address_type* dest, int flags)           = 0;
+virtual std::pair<std::size_t, std::unique_ptr<address_type>> do_recv(void* buf, std::size_t len, int flags) = 0;
 ```
 
-- **Returns:**
-  - The platform-specific socket handle.
+Each `do_...` function is responsible solely for performing the most fundamental, low-level operation associated with its name. These functions are intentionally minimal in scope and make no assumptions beyond the underlying system call or primitive they directly invoke. Detailed descriptions of their behavior and constraints are provided above.
 
-3. **Swap Support (Protected)**
+8. **Swap Support (Protected)**
 
 ```cpp
 virtual void do_swap(Socket& other) noexcept = 0;
@@ -1611,7 +1754,7 @@ virtual void do_swap(Socket& other) noexcept = 0;
   - This pattern avoids virtual slicing and ensures the base class can orchestrate full, polymorphism-aware swapping without knowing type-specific internals.
 - **Complexity:** Constant.
 
-4. **Swap Support**
+9. **Swap Support**
 
 ```cpp
 void swap(Socket& other) noexcept;
@@ -1638,162 +1781,141 @@ The `StreamSocket` class encapsulates a stream-oriented network socket, providin
 ```cpp
 class StreamSocket : public Socket {
 public:
-  // Constructors & Destructor
-  StreamSocket();                                     // Default constructor
-  explicit StreamSocket(const address_type& address); // Constructor from address
+  explicit StreamSocket(address_family_type family = AddressFamily::IPv4, bool inheritable = false);
+
   explicit StreamSocket(native_handle_type handle,
-                     const address_type& address = address_type()); // Constructor from native handle
+                        address_family_type family = AddressFamily::Unknown,
+                        bool inheritable           = false);
 
-  StreamSocket(const StreamSocket& other);            // Copy constructor
-  StreamSocket& operator=(const StreamSocket& other); // Copy assignment operator
+  StreamSocket(const StreamSocket& other);
+  StreamSocket(StreamSocket&& other) noexcept;
 
-  StreamSocket(StreamSocket&& other) noexcept;            // Move constructor
-  StreamSocket& operator=(StreamSocket&& other) noexcept; // Move assignment operator
+  StreamSocket& operator=(const StreamSocket& other);
+  StreamSocket& operator=(StreamSocket&& other) noexcept;
 
-  ~StreamSocket() override; // Destructor
+  ~StreamSocket() override;
 
-  // Socket operations
-  void bind(const address_type& address) override;
-  void bind(const address_type& address, std::error_code& ec) noexcept override;
+protected: // NVI Helpers
+  native_handle_type do_release() noexcept override;
+  void do_shutdown(int how) override;
+  void do_bind(const address_type& address) override;
+  void do_connect(const address_type& address) override;
+  void do_listen(int backlog) override;
+  std::unique_ptr<Socket> do_accept() override;
+  std::size_t do_send(const void* buf, std::size_t len, const address_type* dest, int flags) override;
+  std::pair<std::size_t, std::unique_ptr<address_type>> do_recv(void* buf, std::size_t len, int flags) override;
 
-  void connect(const address_type& address) override;
-  void connect(const address_type& address, std::error_code& ec) noexcept override;
-
-  void listen(int backlog = SOMAXCONN) override;
-  void listen(std::error_code& ec, int backlog = SOMAXCONN) noexcept override;
-
-  std::unique_ptr<Socket> accept() override;
-  std::unique_ptr<Socket> accept(std::error_code& ec) noexcept override;
-
-  void close() noexcept override;
-
-  native_handle_type detach() override;
-  native_handle_type detach(std::error_code& ec) noexcept override;
-
-  void shutdown(int how) override;
-  void shutdown(int how, std::error_code& ec) noexcept override;
-
-  address_type getsockname() const override;
-  address_type getsockname(std::error_code& ec) const noexcept override;
-
-  address_type getpeername() const override;
-  address_type getpeername(std::error_code& ec) const noexcept override;
-
-  // I/O operations
-  std::size_t send(const buffer_type& buf, int flags = 0) override;
-  std::size_t send(const buffer_type& buf, std::error_code& ec, int flags = 0) noexcept override;
-
-  std::size_t sendall(const buffer_type& buf, int flags = 0) override;
-  std::size_t sendall(const buffer_type& buf, std::error_code& ec, int flags = 0) noexcept override;
-
-  std::size_t sendfile(std::ifstream& file, std::streampos offset = 0, std::size_t count = 0) override;
-  std::size_t sendfile(std::ifstream& file,
-                       std::error_code& ec,
-                       std::streampos offset = 0,
-                       std::size_t count     = 0) noexcept override;
-
-  std::size_t
-  sendfile(const std::filesystem::path& file_path, std::streampos offset = 0, std::size_t count = 0) override;
-  std::size_t sendfile(const std::filesystem::path& file_path,
-                       std::error_code& ec,
-                       std::streampos offset = -1,
-                       std::size_t count     = 0) noexcept override;
-
-  buffer_type recv(std::size_t count, int flags = 0) override;
-  buffer_type recv(std::size_t count, std::error_code& ec, int flags = 0) noexcept override;
-
-  buffer_type recvfrom(std::size_t count, address_type& src, int flags = 0) override;
-  buffer_type recvfrom(std::size_t count, address_type& src, std::error_code& ec, int flags = 0) noexcept override;
-
-protected:
-  // Swap support
+protected: // Swap Support
   void do_swap(Socket& other) noexcept override;
 };
 ```
 
 #### Additional Member Functions
 
-1. **Constructor (from address):**
+1. **Constructor (from address)**
 
 ```cpp
-explicit StreamSocket(address_family_type family = AddressFamily::IPv4);
+explicit StreamSocket(address_family_type family = AddressFamily::IPv4, bool inheritable = false);
 ```
 
 - **Effects:**
   - Creates a stream socket with the specified address family, using `SOCK_STREAM` as the socket type and protocol set to `0` (auto-detected).
   - The default address family is `AddressFamily::IPv4`.
 - **Exceptions:**
-  - Throws `socket_error` if the socket creation fails (e.g., the per-process descriptor table is full).
+  - Throws `socket_error` if the socket creation fails.
+- **Complexity:** Constant.
 
-2. **Constructor (from native handle):**
+2. **Constructor (from native handle)**
 
 ```cpp
 explicit StreamSocket(native_handle_type handle,
-                      address_family_type family = AddressFamily::Unknown);
+                      address_family_type family = AddressFamily::Unknown,
+                      bool inheritable           = false);
 ```
 
 - **Effects:**
-  - Takes ownership of an existing socket handle.
-  - The socket's address family is auto-detected from the handle unless overridden by the `family` argument.
-- **Notes:**
-  - This allows the socket to be used with the appropriate family and protocol without duplicating the handle. Useful when a socket is created outside this class (e.g., using `accept()`).
+  - Constructs a `StreamSocket` by taking ownership of an existing native socket handle.
+  - Sets the address family and inheritable flag accordingly.
 - **Exceptions:**
   - Throws `socket_error` if the handle is invalid or not a stream socket.
 - **Complexity:** Constant.
 
-3. **Copy Constructor:**
+3. **Copy Constructor**
 
 ```cpp
 StreamSocket(const StreamSocket& other);
 ```
 
 - **Effects:**
-  - Creates a copy of the other `StreamSocket` object. This duplicates the socket handle and copies the internal state (e.g., timeout settings).
+  - Duplicates the internal handle and copies configuration such as timeouts and inheritability.
 - **Exceptions:**
-  - Throws `socket_error` if copying the socket fails (e.g., invalid handle).
+  - Throws `socket_error` on failure to duplicate the handle.
+- **Complexity:** Depends on OS duplication overhead; typically constant.
 
-4. **Copy Assignment Operator:**
-
-```cpp
-StreamSocket& operator=(const StreamSocket& other);
-```
-
-- **Effects:**
-  - Copies the state of another `StreamSocket` into this one. This duplicates the socket handle and copies the internal state (e.g., timeout settings).
-- **Exceptions:**
-  - Throws `socket_error` if copying the socket fails (e.g., invalid handle).
-
-5. **Move Constructor:**
+4. **Move Constructor**
 
 ```cpp
 StreamSocket(StreamSocket&& other) noexcept;
 ```
 
 - **Effects:**
-  - Transfers ownership of the socket handle and associated resources from `other` to this object.
-  - After the move `other` will be in a valid but unspecified state.
+  - Transfers ownership of `other`'s internal state to `*this`.
+  - `other` is left in an invalid state such that `other.valid()` returns `false`.
 - **Complexity:** Constant.
 
-6. **Move Assignment Operator:**
+5. **Copy Assignment Operator**
+
+```cpp
+StreamSocket& operator=(const StreamSocket& other);
+```
+
+- **Effects:**
+  - Releases current resources and duplicates those of `other`.
+  - Copies configuration such as timeouts and inheritability.
+- **Returns:** `*this`.
+- **Exceptions:**
+  - Throws `socket_error` on failure.
+- **Complexity:** Depends on OS duplication and cleanup overhead; typically constant.
+
+6. **Move Assignment Operator**
 
 ```cpp
 StreamSocket& operator=(StreamSocket&& other) noexcept;
 ```
 
 - **Effects:**
-  - Transfers ownership of the socket handle and associated resources from `other` to this object, invalidating `other`.
-  - After the move `other` will be in a valid but unspecified state.
+  - Releases current resources and acquires those of `other`.
+  - `other` is left invalid.
+- **Returns:** `*this`.
 - **Complexity:** Constant.
 
-7. **Destructor:**
+7. **Destructor**
 
 ```cpp
 ~StreamSocket() override;
 ```
 
 - **Effects:**
-  - Closes the socket and releases any allocated resources. This also invalidates the socket handle.
-- **Complexity:** Constant
+  - Closes the socket if still open and releases associated resources.
+- **Complexity:** Constant.
+
+8. **NVI Helpers**
+
+```cpp
+native_handle_type do_release() noexcept override;
+void do_shutdown(int how) override;
+void do_bind(const address_type& address) override;
+void do_connect(const address_type& address) override;
+void do_listen(int backlog) override;
+std::unique_ptr<Socket> do_accept() override;
+std::size_t do_send(const void* buf, std::size_t len, const address_type* dest, int flags) override;
+std::pair<std::size_t, std::unique_ptr<address_type>> do_recv(void* buf, std::size_t len, int flags) override;
+void do_swap(Socket& other) noexcept override;
+```
+
+- **Effects:**
+  - Implement the core low-level system behavior expected by the `Socket` interface.
+- **Complexity:** Each function is constant or linear depending on the system call invoked.
 
 #### Swap Function
 
