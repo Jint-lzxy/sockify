@@ -993,6 +993,228 @@ The `Buffer` class is an alias for `std::vector<std::byte>`, providing a dynamic
 using Buffer = std::vector<std::byte>;
 ```
 
+#### Utility Functions
+
+1. **Buffer Creation**
+
+```cpp
+Buffer make_buffer(std::size_t count);
+```
+
+- **Effects:**
+  - Constructs a `Buffer` of size `count` with all elements [value‑initialized](https://eel.is/c++draft/dcl.init#general-9) to `std::byte{0}`.
+- **Parameters:**
+  - `count`: Number of bytes to allocate in the returned buffer.
+- **Returns:**
+  - A `Buffer` of length `count`, each byte equal to `std::byte{0}`.
+- **Exceptions:**
+  - May throw `std::bad_alloc` if memory allocation fails.
+
+```cpp
+Buffer make_buffer(const void* data, std::size_t count);
+```
+
+- **Effects:**
+  - Constructs a `Buffer` of size `count` and copies `count` bytes from the object pointed to by `data`.
+- **Parameters:**
+  - `data`: Pointer to source memory, valid for reads of at least `count` bytes.
+  - `count`: Number of bytes to copy.
+- **Returns:**
+  - A `Buffer` containing a copy of the `count` bytes starting at `data`.
+- **Exceptions:**
+  - `std::invalid_argument`: Thrown if data is `nullptr` and `count > 0`.
+  - May throw `std::bad_alloc` if memory allocation fails.
+- **Notes:**
+  - Performs a raw byte copy; no alignment or lifetime guarantees beyond the raw buffer.
+
+2. **Type Conversion**
+
+```cpp
+template <typename T>
+T* buffer_cast(Buffer&&) = delete;
+T* buffer_cast(Buffer& buffer) noexcept;
+```
+
+- **Effects:**
+  - Returns a pointer to `T` by reinterpreting the address of the first byte in `buffer` as `T*`.
+- **Parameters:**
+  - `buffer`: A modifiable lvalue `Buffer`; must satisfy `buffer.size() >= sizeof(T)` for safe use.
+- **Returns:**
+  - `reinterpret_cast<T*>(buffer.data())`.
+- **Notes:**
+  - The caller shall ensure proper alignment and lifetime of `buffer` while pointer is in use.
+  - No rvalue overload is provided to prevent dangling pointers.
+
+```cpp
+template <typename T>
+const T* buffer_cast(const Buffer&&) = delete;
+const T* buffer_cast(const Buffer& buffer) noexcept;
+```
+
+- **Effects:**
+  - Returns `reinterpret_cast<const T*>(buffer.data())`.
+- **Parameters:**
+  - `buffer`: A const lvalue `Buffer`; must satisfy `buffer.size() >= sizeof(T)`.
+- **Returns:**
+  - `const T*`: Pointing at the first byte.
+- **Notes:**
+  - The caller shall ensure proper alignment and lifetime of `buffer` while pointer is in use.
+  - No rvalue overload is provided to prevent dangling pointers.
+
+```cpp
+template <typename T>
+Buffer to_buffer(const T& obj);
+```
+
+- **Effects:**
+  - Serializes the object representation of `obj` into a new `Buffer` of size `sizeof(T)`.
+- **Parameters:**
+  - `obj`: A trivially copyable object.
+- **Returns:**
+  - A `Buffer` containing the raw bytes of obj.
+- **Exceptions:**
+  - May throw `std::bad_alloc`.
+- **Notes:**
+  - Only valid for `std::is_trivially_copyable_v<T> == true`. No endian conversion.
+
+```cpp
+template <typename T>
+T from_buffer(const Buffer& buffer);
+```
+
+- **Effects:**
+  - Reconstructs a `T` by copying `sizeof(T)` bytes from `buffer` into a new object.
+- **Parameters:**
+  - `buffer`: A `Buffer` with `buffer.size() >= sizeof(T)`.
+- **Returns:**
+  - A `T` whose object representation is from the first `sizeof(T)` bytes of `buffer`.
+- **Exceptions:**
+  - Throws `std::out_of_range` if `buffer.size() < sizeof(T)`.
+- **Notes:**
+  - Only valid for trivially copyable types. No endian conversion.
+
+3. **Buffer Manipulation**
+
+```cpp
+Buffer buffer_slice(const Buffer& buffer,
+                    std::ptrdiff_t start,
+                    std::ptrdiff_t stop = std::numeric_limits<std::ptrdiff_t>::max())
+```
+
+- **Effects:**
+  - Let `N = buffer.size()`. Compute two indices `S` and `E` as follows:
+    1. If `start < 0`, set `S = 0` if `start + N < 0`, otherwise `S = start + N`. If `start >= 0`, set `S = min(start, N)`.
+    2. If `stop < 0`, set `E = 0` if `stop + N < 0`, otherwise `E = stop + N`. If `stop >= 0`, set `E = min(stop, N)`.
+    3. Clamp `S` and `E` to the range `[0, N]`.
+    4. If `E <= S`, return an empty `Buffer`.
+    5. Otherwise, allocate a new `Buffer` of length `E - S` and copy `buffer.data() + S` through `buffer.data() + (E - 1)` into it.
+- **Parameters:**
+  - `buffer`: Source `Buffer` of length `N`.
+  - `start`: Signed start offset. Negative values count from end: `index = start + N`.
+  - `stop`: Signed end offset (exclusive). Negative values count from end: `index = stop + N`.
+- **Returns:**
+  - A `Buffer` of length `max(0, E - S)`, containing the subsequence of bytes from index `S` (inclusive) to `E` (exclusive).
+- **Complexity:**
+  - `O(N')` time and `O(N')` additional space, where `N' = max(0, E - S)`.
+- **Exceptions:**
+  - `std::bad_alloc` if memory allocation fails.
+- **Notes:**
+  - This function does not modify the original `buffer`.
+  - Negative indices are translated to offsets from the end; out‑of‑range indices are clamped.
+
+```cpp
+Buffer buffer_concat(const Buffer& first, const Buffer& second);
+```
+
+- **Effects:**
+  - Constructs a `Buffer` containing `first` followed by `second`.
+- **Parameters:**
+  - `first`: First `Buffer`.
+  - `second`: Second `Buffer`.
+- **Returns:**
+  - A `Buffer` of size `first.size() + second.size()`, with contents of `first` then `second`.
+- **Exceptions:**
+  - May throw `std::bad_alloc`.
+- **Notes:**
+  - Equivalent to reserving combined size and inserting both ranges.
+
+4. **Hashing Support**
+
+```cpp
+namespace std {
+  template<>
+  struct hash<Buffer> {
+    std::size_t operator()(const Buffer& buffer) const noexcept;
+  };
+}
+```
+
+- **Effects:**
+  - Returns a `std::size_t` hash computed using `buffer`, suitable for use in unordered containers.
+- **Parameters:**
+  - `buffer`: The `Buffer` to hash.
+- **Returns:**
+  - A nonzero hash value combining the object's contents (for an empty buffer, returns value of zero-length hash).
+- **Notes:**
+  - Implementation may use a well-known non-cryptographic algorithm but must remain deterministic.
+
+5. **Endian-aware Read/Write Primitives**
+
+```cpp
+enum class Endian
+{
+  Big    = /* unspecified */,
+  Little = /* unspecified */,
+  Native = /* unspecified */,
+};
+```
+
+- Indicates the endianness of all scalar types:
+  - If all scalar types are big-endian, `Endian::Native` equals `Endian::Big`.
+  - If all scalar types are little-endian, `Endian::Native` equals `Endian::Little`.
+  - Corner case platforms are also supported:
+    - If all scalar types have `sizeof` equal to `1`, endianness does not matter and all three values, `Endian::Big`, `Endian::Little` and `Endian::Native` are the same.
+    - If the platform uses mixed endian, `Endian::Native` equals neither `Endian::Big` nor `Endian::Little`.
+
+```cpp
+template<typename T, Endian E = Endian::Native>
+T buffer_read_value(const Buffer& buffer, std::size_t offset);
+```
+
+- **Effects:**
+  - Reads `sizeof(T)` bytes from `buffer` starting at `offset`, interprets them according to endianness `E`, and returns the result as type `T`.
+- **Parameters:**
+  - `buffer`: Source buffer; must have `offset + sizeof(T) <= buffer.size()`.
+  - `offset`: Byte index at which to begin reading.
+- **Returns:**
+  - A value of type `T` reconstructed from the byte sequence in the specified endianness.
+- **Exceptions:**
+  - Throws `std::out_of_range` if `offset + sizeof(T) > buffer.size()`.
+- **Complexity:**
+  - `O(1)`, no allocations.
+- **Notes:**
+  - Implementations are encouraged to provide optimized specializations for standard unsigned and signed integer types to reduce overhead from generic byte-shuffling.
+
+```cpp
+template<typename T, Endian E = Endian::Native>
+void buffer_write_value(Buffer& buffer, std::size_t offset, const T& value);
+```
+
+- **Effects:**
+  - Writes the object representation of value into `buffer` at `offset` using endianness `E`. Expands `buffer` if necessary to accommodate `offset + sizeof(T)`.
+- **Parameters:**
+  - `buffer`: Target buffer.
+  - `offset`: Byte index at which to begin writing.
+  - `value`: The value to serialize.
+- **Exceptions:**
+  - Throws `std::bad_alloc` if resizing `buffer` fails.
+- **Complexity:**
+  - `O(1)` amortized for write; may allocate if resizing.
+- **Notes:**
+  - No endian conversion beyond byte reordering; user must choose correct `Endian`.
+- **Notes:**
+  - Implementations are encouraged to provide optimized specializations for standard unsigned and signed integer types to reduce overhead from generic byte-shuffling.
+
 ---
 
 ### `Socket`
