@@ -2247,6 +2247,180 @@ void do_swap(Socket& other) noexcept override;
 
 ---
 
+### `SeqPacketSocket`
+
+The `SeqPacketSocket` class encapsulates a sequenced‑packet–oriented network socket, providing a high‑level interface for managing socket operations using the `SOCK_SEQPACKET` type and an automatically detected protocol (protocol set to `0`). It supports creation, binding, listening, accepting, connecting, sending and receiving sequenced packets, with full resource management and error handling.
+
+#### Synopsis
+
+```cpp
+class SeqPacketSocket : public Socket {
+public:
+  explicit SeqPacketSocket(address_family_type family = AddressFamily::Unix, bool inheritable = false);
+
+  explicit SeqPacketSocket(native_handle_type handle,
+                           address_family_type family = AddressFamily::Unknown,
+                           bool inheritable           = false);
+
+  SeqPacketSocket(const SeqPacketSocket& other);
+  SeqPacketSocket(SeqPacketSocket&& other) noexcept;
+
+  SeqPacketSocket& operator=(const SeqPacketSocket& other);
+  SeqPacketSocket& operator=(SeqPacketSocket&& other) noexcept;
+
+  ~SeqPacketSocket() override;
+
+protected: // NVI Helpers
+  native_handle_type do_release() noexcept override;
+  void do_shutdown(ShutdownMode how, std::error_code& ec) noexcept override;
+  void do_bind(const address_type& address, std::error_code& ec) noexcept override;
+  void do_connect(const address_type& address, std::error_code& ec) noexcept override;
+  void do_listen(int backlog, std::error_code& ec) noexcept override;
+  std::unique_ptr<Socket> do_accept(std::error_code& ec) noexcept override;
+  std::size_t
+  do_send(const void* buf, std::size_t len, const address_type* dest, int flags, std::error_code& ec) noexcept override;
+  std::pair<std::size_t, std::unique_ptr<address_type>>
+  do_recv(void* buf, std::size_t len, int flags, std::error_code& ec) noexcept override;
+
+protected: // Swap Support
+  void do_swap(Socket& other) noexcept override;
+};
+```
+
+#### Additional Member Functions
+
+1. **Constructor (from address family)**
+
+```cpp
+explicit SeqPacketSocket(address_family_type family = AddressFamily::Unix,
+                         bool inheritable = false);
+```
+
+- **Effects:**
+  - Creates a sequenced‑packet socket with the specified address family, using `SOCK_SEQPACKET` and protocol `0` (auto‑select).
+  - Default address family is `AddressFamily::Unix`.
+- **Exceptions:**
+  - Throws `socket_error` if socket creation fails.
+- **Complexity:** Constant.
+
+2. **Constructor (from native handle)**
+
+```cpp
+explicit SeqPacketSocket(native_handle_type handle,
+                         address_family_type family = AddressFamily::Unknown,
+                         bool inheritable           = false);
+```
+
+- **Effects:**
+  - Takes ownership of an existing native socket handle.
+  - Records the address family and inheritability.
+- **Exceptions:**
+  - Throws `socket_error` if handle is invalid or not a sequenced‑packet socket.
+- **Complexity:** Constant.
+
+3. **Copy Constructor**
+
+```cpp
+SeqPacketSocket(const SeqPacketSocket& other);
+```
+
+- **Effects:**
+  - Duplicates the underlying socket handle and copies settings (timeouts, inheritability).
+- **Exceptions:**
+  - Throws `socket_error` on duplication failure.
+- **Complexity:** Typically constant (OS‑dependent).
+
+4. **Move Constructor**
+
+```cpp
+SeqPacketSocket(SeqPacketSocket&& other) noexcept;
+```
+
+- **Effects:**
+  - Transfers ownership of `other`’s resources to `*this`.
+  - Leaves `other` in an invalid state (`other.valid() == false`).
+- **Complexity:** Constant.
+
+5. **Copy Assignment Operator**
+
+```cpp
+SeqPacketSocket& operator=(const SeqPacketSocket& other);
+```
+
+- **Effects:**
+  - Releases current socket, duplicates `other`’s handle and settings.
+- **Returns:** `*this`.
+- **Exceptions:**
+  - Throws `socket_error` on failure.
+- **Complexity:** Typically constant.
+
+6. **Move Assignment Operator**
+
+```cpp
+SeqPacketSocket& operator=(SeqPacketSocket&& other) noexcept;
+```
+
+- **Effects:**
+  - Releases current resources and acquires `other`’s.
+  - `other` is left invalid.
+- **Returns:** `*this`.
+- **Complexity:** Constant.
+
+7. **Destructor**
+
+```cpp
+~SeqPacketSocket() override;
+```
+
+- **Effects:**
+  - Closes socket if open and frees resources.
+- **Complexity:** Constant.
+
+8. **NVI Helpers**
+
+```cpp
+native_handle_type do_release() noexcept override;
+void do_shutdown(ShutdownMode how, std::error_code& ec) noexcept override;
+void do_bind(const address_type& address, std::error_code& ec) noexcept override;
+void do_connect(const address_type& address, std::error_code& ec) noexcept override;
+void do_listen(int backlog, std::error_code& ec) noexcept override;
+std::unique_ptr<Socket> do_accept(std::error_code& ec) noexcept override;
+std::size_t
+  do_send(const void* buf, std::size_t len, const address_type* dest, int flags,
+          std::error_code& ec) noexcept override;
+std::pair<std::size_t, std::unique_ptr<address_type>>
+  do_recv(void* buf, std::size_t len, int flags, std::error_code& ec) noexcept override;
+```
+
+- **Effects:**
+  - `do_release`: releases ownership of the native handle.
+  - `do_shutdown`: orderly shutdown of send and/or receive.
+  - `do_bind`: binds socket to local address.
+  - `do_connect`: establishes a connection to a peer (sequenced‑packet sockets are connection‑oriented).
+  - `do_listen`: marks socket as passive, ready to accept incoming connections (backlog applies).
+  - `do_accept`: accepts a new connection, returning a new `SeqPacketSocket`.
+  - `do_send`: sends a sequenced packet to connected peer (ignores `dest` if non‑null, since peer is fixed).
+  - `do_recv`: receives a packet, returning its size and (optionally) the peer address.
+- **Exceptions:**
+  - None thrown; errors reported via `ec`.
+- **Complexity:** Each is constant or linear in buffer size/system‑call overhead.
+
+9. **Swap Function**
+
+```cpp
+void do_swap(Socket& other) noexcept override;
+```
+
+- **Effects:**
+  - Swaps `SeqPacketSocket`‑specific state with `other`.
+  - Base‑class swap handles generic members.
+- **Preconditions:**
+  - `other` must be of dynamic type `SeqPacketSocket`.
+  - Guaranteed by base‑class `swap()`.
+- **Complexity:** Constant.
+
+---
+
 ### `SocketEvent`
 
 The `SocketEvent` enumeration represents the types of I/O events that can occur on a socket. It is defined as a bitmask type so that multiple event flags may be combined.
