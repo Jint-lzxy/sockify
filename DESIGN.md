@@ -1217,6 +1217,34 @@ void buffer_write_value(Buffer& buffer, std::size_t offset, const T& value);
 
 ---
 
+### `ShutdownMode`
+
+The `ShutdownMode` scoped enumeration represents the direction in which a socket's communication is disabled. It determines whether further send and/or receive operations are permitted after shutdown is called.
+
+#### Synopsis
+
+```cpp
+enum class ShutdownMode {
+  Receive = /* unspecified */,
+  Send    = /* unspecified */,
+  Both    = /* unspecified */
+};
+```
+
+#### Constants
+
+| Enumerator | Meaning                                                                       |
+| ---------- | ----------------------------------------------------------------------------- |
+| `Receive`  | Disables further receive operations (corresponds to POSIX `SHUT_RD`).         |
+| `Send`     | Disables further send operations (corresponds to POSIX `SHUT_WR`).            |
+| `Both`     | Disables both send and receive operations (corresponds to POSIX `SHUT_RDWR`). |
+
+#### Notes
+
+This enumeration provides a type-safe and portable way to specify shutdown behavior for sockets. Internally, each enumerator maps to the appropriate platform-specific constant. Existing enumerators are stable across supported operating systems.
+
+---
+
 ### `Socket`
 
 The `Socket` class defines a unified, protocol-agnostic interface for synchronous sockets. It encapsulates the basic lifecycle, option management and read/write interfaces, and is intended to be inherited by concrete socket types such as `StreamSocket` and `DatagramSocket`.
@@ -1363,7 +1391,7 @@ void bind(const address_type& address, std::error_code& ec) noexcept;
 
 - **Effects:**
   - Validates `address`.
-  - Calls `do_bind(address)`, which binds the socket to the specified local address. Required before calling `listen()` on server sockets.
+  - Calls `do_bind`, which binds the socket to the specified local address. Required before calling `listen()` on server sockets.
 - **Parameters:**
   - `address`: Local endpoint to bind to.
   - `ec` (non‑throwing overload): receives error code on failure.
@@ -1379,7 +1407,7 @@ void listen(int backlog, std::error_code& ec) noexcept;
 
 - **Effects:**
   - Validates that socket is bound.
-  - Calls `do_listen(backlog)`, which marks the socket as passive, used to accept incoming connection requests.
+  - Calls `do_listen`, which marks the socket as passive, used to accept incoming connection requests.
 - **Parameters:**
   - `backlog`: Maximum queued connection requests (clamped to >=0).
   - `ec` (non‑throwing overload): receives error code on failure.
@@ -1395,7 +1423,7 @@ std::unique_ptr<Socket> accept(std::error_code& ec) noexcept;
 
 - **Effects:**
   - Blocks (or not, per mode) until an incoming connection is pending.
-  - Calls `do_accept()`, which accepts a pending connection and wraps result in `unique_ptr<Socket>`.
+  - Calls `do_accept`, which accepts a pending connection and wraps result in `unique_ptr<Socket>`.
 - **Parameters:**
   - `ec` (non‑throwing overload): receives error code on failure.
 - **Returns:**
@@ -1411,7 +1439,7 @@ void connect(const address_type& address, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
-  - Calls `do_connect(address)`, which establishes a connection to the specified remote address.
+  - Calls `do_connect`, which establishes a connection to the specified remote address.
   - If the connection is interrupted by a signal, the method waits until the connection completes, or throws an exception on timeout (see _Exceptions_), if the signal handler doesn't raise an exception and the socket is blocking or has a timeout. For non-blocking sockets, the method throws an exception if the connection is interrupted by a signal (or the exception raised by the signal handler) (see _Exceptions_).
 - **Parameters:**
   - `address`: Remote endpoint.
@@ -1694,18 +1722,25 @@ recv(std::size_t count, std::error_code& ec, int flags = 0) noexcept;
     - A unique pointer to the source address, if applicable. If the socket is connection-oriented, the result is empty.
 - **Exceptions:**
   - Throws `socket_error` if the receive operation fails.
+- **Notes:**
+  - The returned buffer's size (`buffer.size()`) equals the number of bytes actually read, `m`, where `0 <= m <= count`.
+  - Only those `m` bytes are stored in the buffer; there is no zero‑padding or uninitialized "extra" bytes beyond `buffer.size()`.
+  - On a message‑oriented socket (e.g. `SOCK_SEQPACKET` or `SOCK_DGRAM`):
+    - If the incoming message length `<= count`, you get the entire message (`m` = message length).
+    - If the incoming message length `> count`, the buffer contains the first count bytes (`m = count`), and the remainder is discarded.
+  - On a stream socket (`SOCK_STREAM`): you get up to count bytes from the stream; exactly how many depends on what's available.
 - **Complexity:**
   - Linear in the number of bytes received (`O(m)`), where `m <= count`. Performance may vary depending on system buffer state and network activity.
 
 ```cpp
-void shutdown(int how);
-void shutdown(int how, std::error_code& ec) noexcept;
+void shutdown(ShutdownMode how);
+void shutdown(ShutdownMode how, std::error_code& ec) noexcept;
 ```
 
 - **Effects:**
-  - Effectively calls `do_shutdown(how)`.
+  - Effectively calls `do_shutdown`.
 - **Parameters:**
-  - `how`: `SHUT_RD`, `SHUT_WR`, or `SHUT_RDWR`.
+  - `how`: A `ShutdownMode` value indicating which part of the full-duplex connection to disable.
   - `ec`: error code (non‑throwing).
 - **Exceptions:**
   - Throwing overload: `socket_error` if invalid `how`.
@@ -1723,18 +1758,123 @@ native_handle_type native_handle() noexcept;
 
 7. **NVI Helpers (Protected)**
 
+> [!NOTE]
+> These protected virtual functions form the **non-virtual interface (NVI) implementation layer**, responsible for executing the actual low-level socket operations. Each `do_...` function performs exactly one operation and is implemented by inherited classes specific to the underlying platform.
+>
+> All functions take a `std::error_code& ec` reference, which they use to report errors without throwing exceptions. On success, the function resets `ec`; on failure, it sets `ec` to an appropriate platform-specific value (e.g., from `errno` or `WSAGetLastError`). These functions **must never throw**, and must impose **no policy**. They must not retry, log, or otherwise interpret errors. Their contract is purely mechanical. Specifically:
+>
+> - All functions report errors **only** through the `std::error_code& ec` parameter.
+> - No function throws exceptions.
+> - Implementations must **not assume state** (e.g., connected, bound). State checks happen in the public API.
+> - Implementations may assume **valid, initialized inputs**, e.g., `buf` is valid memory, `address` is well-formed.
+> - Socket ownership remains with the implementer, except for `do_accept` which transfers ownership via `unique_ptr`.
+> - On success, `ec` is left **unset** (i.e., `!ec` is `true`); on failure, it is set using platform-specific methods:
+>   - POSIX: `ec = std::error_code{errno, std::system_category()}`
+>   - Windows: `ec = std::error_code{WSAGetLastError(), std::system_category()}`
+
 ```cpp
-virtual native_handle_type do_release() noexcept                                                             = 0;
-virtual void do_shutdown(int how)                                                                            = 0;
-virtual void do_bind(const address_type& address)                                                            = 0;
-virtual void do_connect(const address_type& address)                                                         = 0;
-virtual void do_listen(int backlog)                                                                          = 0;
-virtual std::unique_ptr<Socket> do_accept()                                                                  = 0;
-virtual std::size_t do_send(const void* buf, std::size_t len, const address_type* dest, int flags)           = 0;
-virtual std::pair<std::size_t, std::unique_ptr<address_type>> do_recv(void* buf, std::size_t len, int flags) = 0;
+virtual native_handle_type do_release() noexcept = 0;
 ```
 
-Each `do_...` function is responsible solely for performing the most fundamental, low-level operation associated with its name. These functions are intentionally minimal in scope and make no assumptions beyond the underlying system call or primitive they directly invoke. Detailed descriptions of their behavior and constraints are provided above.
+- **Purpose:**
+  - Relinquishes ownership of the underlying native socket handle (e.g., file descriptor or Windows `SOCKET`).
+- **Returns:**
+  - The socket's native handle.
+
+```cpp
+virtual void do_shutdown(ShutdownMode how, std::error_code& ec) noexcept = 0;
+```
+
+- **Purpose:**
+  - Shuts down one or both halves (send, receive) of a socket connection, depending on `how`.
+- **Parameters:**
+  - `how`: Enumerated value indicating which direction(s) to shut down.
+  - `ec`: Output error code.
+- **Returns:**
+  - `void` (errors reported via `ec`).
+
+```cpp
+virtual void do_bind(const address_type& address, std::error_code& ec) noexcept = 0;
+```
+
+- **Purpose:**
+  - Binds the socket to a local address (usually IP and port). Only valid for unbound sockets.
+- **Parameters:**
+  - `address`: The local address to bind.
+  - `ec`: Output error code.
+    **Returns:**
+  - `void` (errors reported via `ec`).
+
+```cpp
+virtual void do_connect(const address_type& address, std::error_code& ec) noexcept = 0;
+```
+
+- **Purpose:**
+  - Initiates a connection to a remote peer. This may complete immediately or require completion later depending on the platform and mode (blocking/non-blocking).
+- **Parameters:**
+  - `address`: Remote endpoint to connect to.
+  - `ec`: Output error code.
+- **Returns:**
+  - `void` (errors reported via `ec`).
+
+```cpp
+virtual void do_listen(int backlog, std::error_code& ec) noexcept = 0;
+```
+
+- **Purpose:**
+  - Marks the socket as a passive socket to accept incoming connection requests.
+- **Parameters:**
+  - `backlog`: Maximum number of pending connections to queue.
+  - `ec`: Output error code.
+- **Returns:**
+  - `void` (errors reported via `ec`).
+
+```cpp
+virtual std::unique_ptr<Socket> do_accept(std::error_code& ec) noexcept = 0;
+```
+
+- **Purpose:**
+  - Accepts a new incoming connection. If successful, returns a new `Socket` instance wrapping the accepted connection.
+- **Parameters:**
+  - `ec`: Output error code.
+- **Returns:**
+  - On success: `unique_ptr<Socket>` to the accepted connection.
+  - On failure: `nullptr`, with error code in `ec`.
+
+```cpp
+virtual std::size_t
+do_send(const void* buf, std::size_t len, const address_type* dest, int flags, std::error_code& ec) noexcept = 0;
+```
+
+- **Purpose:**
+  - Sends a block of data. If `dest` is non-null, the socket is assumed to be connectionless (e.g., UDP), and a datagram is sent. Otherwise, it performs a standard stream send.
+- **Parameters:**
+  - `buf`: Pointer to data to send.
+  - `len`: Number of bytes to send.
+  - `dest`: Optional destination address (for datagram sockets).
+  - `flags`: Platform-specific send flags (e.g., `MSG_DONTWAIT`).
+  - `ec`: Output error code.
+- **Returns:**
+  - Number of bytes actually sent.
+  - On failure: returns `0`, `ec` is set.
+
+```cpp
+virtual std::pair<std::size_t, std::unique_ptr<address_type>>
+do_recv(void* buf, std::size_t len, int flags, std::error_code& ec) noexcept = 0;
+```
+
+- **Purpose:**
+  - Receives a block of data into the buffer. If the socket is datagram-based, the source address may also be returned.
+- **Parameters:**
+  - `buf`: Pointer to memory to store received data.
+  - `len`: Maximum number of bytes to receive.
+  - `flags`: Platform-specific receive flags.
+  - `ec`: Output error code.
+- **Returns:**
+  - A pair:
+    - Number of bytes received.
+    - Optional source address (empty for stream sockets).
+  - On failure: `{0, nullptr}`, `ec` is set.
 
 8. **Swap Support (Protected)**
 
@@ -1797,13 +1937,15 @@ public:
 
 protected: // NVI Helpers
   native_handle_type do_release() noexcept override;
-  void do_shutdown(int how) override;
-  void do_bind(const address_type& address) override;
-  void do_connect(const address_type& address) override;
-  void do_listen(int backlog) override;
-  std::unique_ptr<Socket> do_accept() override;
-  std::size_t do_send(const void* buf, std::size_t len, const address_type* dest, int flags) override;
-  std::pair<std::size_t, std::unique_ptr<address_type>> do_recv(void* buf, std::size_t len, int flags) override;
+  void do_shutdown(ShutdownMode how, std::error_code& ec) noexcept override;
+  void do_bind(const address_type& address, std::error_code& ec) noexcept override;
+  void do_connect(const address_type& address, std::error_code& ec) noexcept override;
+  void do_listen(int backlog, std::error_code& ec) noexcept override;
+  std::unique_ptr<Socket> do_accept(std::error_code& ec) noexcept override;
+  std::size_t
+  do_send(const void* buf, std::size_t len, const address_type* dest, int flags, std::error_code& ec) noexcept override;
+  std::pair<std::size_t, std::unique_ptr<address_type>>
+  do_recv(void* buf, std::size_t len, int flags, std::error_code& ec) noexcept override;
 
 protected: // Swap Support
   void do_swap(Socket& other) noexcept override;
@@ -1903,14 +2045,15 @@ StreamSocket& operator=(StreamSocket&& other) noexcept;
 
 ```cpp
 native_handle_type do_release() noexcept override;
-void do_shutdown(int how) override;
-void do_bind(const address_type& address) override;
-void do_connect(const address_type& address) override;
-void do_listen(int backlog) override;
-std::unique_ptr<Socket> do_accept() override;
-std::size_t do_send(const void* buf, std::size_t len, const address_type* dest, int flags) override;
-std::pair<std::size_t, std::unique_ptr<address_type>> do_recv(void* buf, std::size_t len, int flags) override;
-void do_swap(Socket& other) noexcept override;
+void do_shutdown(ShutdownMode how, std::error_code& ec) noexcept override;
+void do_bind(const address_type& address, std::error_code& ec) noexcept override;
+void do_connect(const address_type& address, std::error_code& ec) noexcept override;
+void do_listen(int backlog, std::error_code& ec) noexcept override;
+std::unique_ptr<Socket> do_accept(std::error_code& ec) noexcept override;
+std::size_t
+  do_send(const void* buf, std::size_t len, const address_type* dest, int flags, std::error_code& ec) noexcept override;
+std::pair<std::size_t, std::unique_ptr<address_type>>
+  do_recv(void* buf, std::size_t len, int flags, std::error_code& ec) noexcept override;
 ```
 
 - **Effects:**
@@ -1931,6 +2074,175 @@ void do_swap(Socket& other) noexcept override;
 - **Preconditions:**
   - `other` must be of dynamic type `StreamSocket`.
   - This precondition is guaranteed by the base class `swap()` implementation and must not be checked redundantly here.
+- **Complexity:** Constant.
+
+---
+
+### `DatagramSocket`
+
+The `DatagramSocket` class encapsulates a datagram‐oriented network socket, providing a high‑level interface for managing socket operations using the `SOCK_DGRAM` type and an automatically detected protocol (protocol set to `0`). It supports the full set of standard operations required to create, bind, connect, send and receive datagrams, while ensuring robust resource management and error handling.
+
+#### Synopsis
+
+```cpp
+class DatagramSocket : public Socket {
+public:
+  explicit DatagramSocket(address_family_type family = AddressFamily::IPv4, bool inheritable = false);
+
+  explicit DatagramSocket(native_handle_type handle,
+                          address_family_type family = AddressFamily::Unknown,
+                          bool inheritable           = false);
+
+  DatagramSocket(const DatagramSocket& other);
+  DatagramSocket(DatagramSocket&& other) noexcept;
+
+  DatagramSocket& operator=(const DatagramSocket& other);
+  DatagramSocket& operator=(DatagramSocket&& other) noexcept;
+
+  ~DatagramSocket() override;
+
+protected: // NVI Helpers
+  native_handle_type do_release() noexcept override;
+  void do_shutdown(ShutdownMode how, std::error_code& ec) noexcept override;
+  void do_bind(const address_type& address, std::error_code& ec) noexcept override;
+  void do_connect(const address_type& address, std::error_code& ec) noexcept override;
+  void do_listen(int /*backlog*/, std::error_code& ec) noexcept override;
+  std::unique_ptr<Socket> do_accept(std::error_code& ec) noexcept override;
+  std::size_t
+  do_send(const void* buf, std::size_t len, const address_type* dest, int flags, std::error_code& ec) noexcept override;
+  std::pair<std::size_t, std::unique_ptr<address_type>>
+  do_recv(void* buf, std::size_t len, int flags, std::error_code& ec) noexcept override;
+
+protected: // Swap Support
+  void do_swap(Socket& other) noexcept override;
+};
+```
+
+#### Additional Member Functions
+
+1. **Constructor (from address family)**
+
+```cpp
+explicit DatagramSocket(address_family_type family = AddressFamily::IPv4, bool inheritable = false);
+```
+
+- **Effects:**
+  - Creates a datagram socket with the specified address family, using `SOCK_DGRAM` and protocol `0` (auto‑select).
+  - Default address family is `AddressFamily::IPv4`.
+- **Exceptions:**
+  - Throws `socket_error` if socket creation fails.
+- **Complexity:** Constant.
+
+2. **Constructor (from native handle)**
+
+```cpp
+explicit DatagramSocket(native_handle_type handle,
+                        address_family_type family = AddressFamily::Unknown,
+                        bool inheritable           = false);
+```
+
+- **Effects:**
+  - Takes ownership of an existing native socket handle.
+  - Records the address family and inheritability.
+- **Exceptions:**
+  - Throws `socket_error` if handle is invalid or not a datagram socket.
+- **Complexity:** Constant.
+
+3. **Copy Constructor**
+
+```cpp
+DatagramSocket(const DatagramSocket& other);
+```
+
+- **Effects:**
+  - Duplicates the underlying socket handle and copies settings (timeouts, inheritability).
+- **Exceptions:**
+  - Throws `socket_error` on duplication failure.
+- **Complexity:** Typically constant (OS‑dependent).
+
+4. **Move Constructor**
+
+```cpp
+DatagramSocket(DatagramSocket&& other) noexcept;
+```
+
+- **Effects:**
+  - Transfers ownership of `other`’s resources to `*this`.
+  - Leaves `other` in an invalid state (`other.valid() == false`).
+- **Complexity:** Constant.
+
+5. **Copy Assignment Operator**
+
+```cpp
+DatagramSocket& operator=(const DatagramSocket& other);
+```
+
+- **Effects:**
+  - Releases current socket, duplicates `other`’s handle and settings.
+- **Returns:** `*this`.
+- **Exceptions:**
+  - Throws `socket_error` on failure.
+- **Complexity:** Typically constant.
+
+6. **Move Assignment Operator**
+
+```cpp
+DatagramSocket& operator=(DatagramSocket&& other) noexcept;
+```
+
+- **Effects:**
+  - Releases current resources and acquires `other`’s.
+  - `other` is left invalid.
+- **Returns:** `*this`.
+- **Complexity:** Constant.
+
+7. **Destructor**
+
+```cpp
+~DatagramSocket() override;
+```
+
+- **Effects:**
+  - Closes socket if open and frees resources.
+- **Complexity:** Constant.
+
+8. **NVI Helpers**
+
+```cpp
+native_handle_type do_release() noexcept override;
+void do_shutdown(ShutdownMode how, std::error_code& ec) noexcept override;
+void do_bind(const address_type& address, std::error_code& ec) noexcept override;
+void do_connect(const address_type& address, std::error_code& ec) noexcept override;
+void do_listen(int /*backlog*/, std::error_code& ec) noexcept override;
+std::unique_ptr<Socket> do_accept(std::error_code& ec) noexcept override;
+std::size_t
+  do_send(const void* buf, std::size_t len, const address_type* dest, int flags, std::error_code& ec) noexcept override;
+std::pair<std::size_t, std::unique_ptr<address_type>>
+  do_recv(void* buf, std::size_t len, int flags, std::error_code& ec) noexcept override;
+```
+
+- **Effects:**
+  - `do_release`: releases ownership of the native handle.
+  - `do_shutdown`: shuts down send and/or receive on the socket.
+  - `do_bind`: binds socket to local address.
+  - `do_connect`: sets a default peer address for subsequent `send`/`recv`.
+  - `do_listen` / `do_accept`: not supported for datagrams; should always update `ec`.
+  - `do_send`: sends a datagram to `dest` (if non‑empty) or to connected peer.
+  - `do_recv`: receives a datagram, returning size and source address.
+- **Complexity:** Each is constant or linear in the size of the data buffer or system‑call overhead.
+
+#### Swap Function
+
+```cpp
+void do_swap(Socket& other) noexcept override;
+```
+
+- **Effects:**
+  - Swaps `DatagramSocket`‑specific state with `other`.
+  - Base‑class swap handles the generic members.
+- **Preconditions:**
+  - `other` must be of dynamic type `DatagramSocket`.
+  - Guaranteed by base‑class `swap()`.
 - **Complexity:** Constant.
 
 ---
