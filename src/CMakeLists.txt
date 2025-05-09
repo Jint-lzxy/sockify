@@ -35,11 +35,6 @@ add_library(${LIBSOCKIFY_TARGET} SHARED ${LIBSOCKIFY_SOURCES})
 target_include_directories(${LIBSOCKIFY_TARGET}
                            PUBLIC "${abs_top_srcdir}/include")
 
-# Conditionally define SOCKIFY_BUILD_DLL for Windows
-if(WIN32)
-  target_compile_definitions(${LIBSOCKIFY_TARGET} PRIVATE SOCKIFY_BUILD_DLL)
-endif()
-
 # -----------------------------------------------------------------------------
 # CLI Executable Target
 # -----------------------------------------------------------------------------
