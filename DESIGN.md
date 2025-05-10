@@ -985,13 +985,20 @@ const char* what() const noexcept override;
 
 ### `Buffer`
 
-The `Buffer` class is an alias for `std::vector<std::byte>`, providing a dynamic, resizable buffer specifically designed to store raw binary data.
+The type `Buffer` is an alias for a dynamically resizable, contiguous sequence of storage elements, modeled to provide the functionality of a `std::vector<std::byte>`. It acts as a container where each element is of type `std::byte`. As a vector-like container, `Buffer` supports all operations of `std::vector`, including dynamic resizing, element access, and capacity management. It provides the flexibility to store raw binary data, while preserving the object representation of arbitrary trivially copyable types.
 
 #### Synopsis
 
 ```cpp
-using Buffer = std::vector<std::byte>;
+using Buffer = /* unspecified */;
 ```
+
+> [!CAUTION]
+> The storage region exposed by a `Buffer` object via `buffer.data()` shall be suitably aligned for storing objects of any type `T` such that `alignof(T) <= alignof(std::max_align_t)`. In particular, for any such `T`, it is implementation-defined but guaranteed that `reinterpret_cast<T*>(buffer.data())` yields a pointer that is correctly aligned for `T`, provided `buffer.size() >= sizeof(T)`. This requirement ensures that reinterpretation of the buffer storage to access the value of a scalar object, pointer, or aggregate composed thereof is valid and does not result in undefined behavior due to misalignment.
+>
+> The alignment guarantee is a fundamental correctness requirement for the supporting utility functions (e.g., `buffer_cast<T>(buffer)`), and allows users to portably treat the storage as capable of holding any fundamental or standard-layout type whose alignment does not exceed that of `std::max_align_t`. Implementations are not constrained in how this guarantee is achieved: an implementation may satisfy the alignment requirement by using an over-aligned value type (e.g., `std::aligned_storage_t<1, alignof(std::max_align_t)>`), a custom allocator that returns storage aligned to `std::max_align_t`, or any other means consistent with standard dynamic allocation behavior ([\[new\.delete\]](https://eel.is/c++draft/new.delete), [\[allocator.requirements\]](https://eel.is/c++draft/allocator.requirements)).
+>
+> This specification does not permit the storage returned by `buffer.data()` to be used to construct or access objects with alignment requirements stricter than `std::max_align_t`. Accessing such objects through `Buffer` is ill-formed or results in undefined behavior unless further guarantees are provided externally. Implementations may provide stronger alignment guarantees, but such guarantees are not portable and shall not be relied upon unless explicitly documented.
 
 #### Utility Functions
 
@@ -1201,19 +1208,19 @@ void buffer_write_value(Buffer& buffer, std::size_t offset, const T& value);
 ```
 
 - **Effects:**
-  - Writes the object representation of value into `buffer` at `offset` using endianness `E`. Expands `buffer` if necessary to accommodate `offset + sizeof(T)`.
+  - Copies the object representation of `value` (i.e. its bytes) into `buffer.data() + offset`, in endianness `E`.
+  - **Does not** change `buffer.size()`.
 - **Parameters:**
-  - `buffer`: Target buffer.
-  - `offset`: Byte index at which to begin writing.
-  - `value`: The value to serialize.
+  - `buffer`: target `Buffer`; must already have `buffer.size() >= offset + sizeof(T)`.
+  - `offset`: byte‐index within `buffer` at which to begin writing.
+  - `value`: the value whose bytes are to be written.
 - **Exceptions:**
-  - Throws `std::bad_alloc` if resizing `buffer` fails.
+  - Throws `std::out_of_range` if `offset + sizeof(T) > buffer.size()`.
+  - No `std::bad_alloc` possible, since no resizing occurs.
 - **Complexity:**
-  - `O(1)` amortized for write; may allocate if resizing.
+  - Constant: a fixed small number of byte‐stores and shifts.
 - **Notes:**
-  - No endian conversion beyond byte reordering; user must choose correct `Endian`.
-- **Notes:**
-  - Implementations are encouraged to provide optimized specializations for standard unsigned and signed integer types to reduce overhead from generic byte-shuffling.
+  - Callers who need to ensure space must do `buffer.resize()` or `buffer.reserve()` ahead of time.
 
 ---
 
