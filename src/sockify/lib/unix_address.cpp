@@ -73,14 +73,15 @@ UnixDomainAddress::string_type UnixDomainAddress::to_string() const
 
 void UnixDomainAddress::do_swap(Address& other) noexcept
 {
-  auto* rhs = dynamic_cast<UnixDomainAddress*>(&other);
-  std::swap(socket_path, rhs->socket_path);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast): other is known to be of the same type.
+  auto& rhs = static_cast<UnixDomainAddress&>(other);
+  std::swap(socket_path, rhs.socket_path);
 }
 
 int UnixDomainAddress::compare(const Address& other) const noexcept
 {
-  // NOTE: other is known to be of the same type, will not throw an exception.
-  return socket_path.compare(dynamic_cast<const UnixDomainAddress&>(other).socket_path);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast): other is known to be of the same type.
+  return socket_path.compare(static_cast<const UnixDomainAddress&>(other).socket_path);
 }
 
 }; // namespace sockify

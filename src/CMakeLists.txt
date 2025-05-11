@@ -48,11 +48,6 @@ target_include_directories(
          # When installed...
          $<INSTALL_INTERFACE:include>)
 
-# Conditionally define SOCKIFY_BUILD_DLL for Windows
-if(WIN32)
-  target_compile_definitions(${LIBSOCKIFY_TARGET} PRIVATE SOCKIFY_BUILD_DLL)
-endif()
-
 # -----------------------------------------------------------------------------
 # CLI Executable Target
 # -----------------------------------------------------------------------------
