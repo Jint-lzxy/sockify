@@ -19,7 +19,6 @@
 #  error "libsockify requires C++17 or later"
 #endif
 
-/* --- Disabled: CMake configuration not complete yet ---
 /// Major version number.
 #define SOCKIFY_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
 
@@ -34,7 +33,6 @@
 
 /// Human-readable version string.
 #define SOCKIFY_VERSION_STRING "@PROJECT_VERSION@"
-*/
 
 // Compiler detection
 #if defined(__clang__)
@@ -66,6 +64,22 @@
 #  define SOCKIFY_PLATFORM_UNIX 1
 #else
 #  define SOCKIFY_PLATFORM_UNIX 0
+#endif
+
+// Endianness detection
+#ifndef __BYTE_ORDER__
+#  error "Your compiler doesn't define __BYTE_ORDER__, which libsockify needs to determine endianness."
+#else
+#  if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#    define SOCKIFY_LITTLE_ENDIAN 1
+#    define SOCKIFY_BIG_ENDIAN    0
+#  elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#    define SOCKIFY_LITTLE_ENDIAN 0
+#    define SOCKIFY_BIG_ENDIAN    1
+#  else
+#    define SOCKIFY_LITTLE_ENDIAN 0
+#    define SOCKIFY_BIG_ENDIAN    0
+#  endif
 #endif
 
 // Visibility and linkage
