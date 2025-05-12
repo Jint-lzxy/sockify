@@ -29,7 +29,6 @@
 #include <stdexcept>
 #include <string_view>
 #include <type_traits>
-#include <utility>
 #include <vector>
 
 namespace sockify {
@@ -85,7 +84,7 @@ public: // Member functions
     // NOLINTNEXTLINE(bugprone-sizeof-expression): Intentional use of sizeof on possibly incomplete type.
     static_assert(sizeof(Tp) >= 0, "cannot allocate memory for an incomplete type");
 
-    std::size_t howmany = count * sizeof(Tp);
+    const std::size_t howmany = count * sizeof(Tp);
     if constexpr (Align <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)
       return static_cast<Tp*>(::operator new(howmany));
     else
@@ -237,13 +236,9 @@ inline SOCKIFY_EXPORT Buffer buffer_slice(const Buffer& buffer,
 {
   const auto size = static_cast<std::ptrdiff_t>(buffer.size());
 
-  // compute S and E
-  start = start < 0 ? std::max<std::ptrdiff_t>(start + size, 0) : std::min(start, size);
-  stop  = stop < 0 ? std::max<std::ptrdiff_t>(stop + size, 0) : std::min(stop, size);
-
-  // clamp
-  start = std::clamp<std::ptrdiff_t>(start, 0, size);
-  stop  = std::clamp<std::ptrdiff_t>(stop, 0, size);
+  // Handle negative indices and clamp
+  start = std::clamp<std::ptrdiff_t>(start < 0 ? start + size : start, 0, size);
+  stop  = std::clamp<std::ptrdiff_t>(stop < 0 ? stop + size : stop, 0, size);
 
   if (stop <= start)
     return Buffer{};
