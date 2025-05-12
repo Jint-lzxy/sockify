@@ -188,48 +188,56 @@ private:
 /// \param lhs  Left Address.
 /// \param rhs  Right Address.
 /// \return true if both have same family and storage bytes.
+/// \relates Address
 SOCKIFY_EXPORT bool operator==(const Address& lhs, const Address& rhs);
 
 /// Inequality comparison for Addresses.
 /// \param lhs  Left Address.
 /// \param rhs  Right Address.
 /// \return !(lhs == rhs).
+/// \relates Address
 SOCKIFY_EXPORT bool operator!=(const Address& lhs, const Address& rhs);
 
 /// Less-than comparison for Addresses.
 /// \param lhs  Left Address.
 /// \param rhs  Right Address.
 /// \return true if lhs.compare(rhs) < 0.
+/// \relates Address
 SOCKIFY_EXPORT bool operator<(const Address& lhs, const Address& rhs);
 
 /// Less-than-or-equal comparison for Addresses.
 /// \param lhs  Left Address.
 /// \param rhs  Right Address.
 /// \return true if lhs < rhs or lhs == rhs.
+/// \relates Address
 SOCKIFY_EXPORT bool operator<=(const Address& lhs, const Address& rhs);
 
 /// Greater-than comparison for Addresses.
 /// \param lhs  Left Address.
 /// \param rhs  Right Address.
 /// \return true if lhs.compare(rhs) > 0.
+/// \relates Address
 SOCKIFY_EXPORT bool operator>(const Address& lhs, const Address& rhs);
 
 /// Greater-than-or-equal comparison for Addresses.
 /// \param lhs  Left Address.
 /// \param rhs  Right Address.
 /// \return true if lhs > rhs or lhs == rhs.
+/// \relates Address
 SOCKIFY_EXPORT bool operator>=(const Address& lhs, const Address& rhs);
 
 /// Enable unqualified swap via ADL.
 /// \param lhs  First Address.
 /// \param rhs  Second Address.
 /// \note Calls lhs.swap(rhs).
+/// \relates Address
 SOCKIFY_EXPORT void swap(Address& lhs, Address& rhs) noexcept;
 
 /// Send an Address to an ostream.
 /// \param strm  The output stream.
 /// \param addr  The Address to print.
 /// \return \p strm after writing addr.to_string().
+/// \relates Address
 SOCKIFY_EXPORT std::ostream& operator<<(std::ostream& strm, const Address& addr);
 
 } // namespace sockify
