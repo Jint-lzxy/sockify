@@ -70,7 +70,8 @@
 
 // Visibility and linkage
 #if SOCKIFY_PLATFORM_WINDOWS
-#  if defined(SOCKIFY_BUILD_DLL)
+// sockify_EXPORTS should already be defined by CMake.
+#  if defined(sockify_EXPORTS)
 /// Export public symbols when building libsockify.
 #    define SOCKIFY_EXPORT __declspec(dllexport)
 #  else

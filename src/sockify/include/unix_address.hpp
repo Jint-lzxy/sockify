@@ -12,8 +12,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef UNIX_ADDRESS_HPP
-#define UNIX_ADDRESS_HPP
+#ifndef SOCKIFY_UNIX_ADDRESS_HPP
+#define SOCKIFY_UNIX_ADDRESS_HPP
 
 #include "address.hpp"
 #include "config.hpp"
