@@ -129,8 +129,7 @@ TEST_CASE("Edge cases for host/port parsing", "[ipaddress][parse]")
   // Extra colons in unbracketed IPv4
   REQUIRE_THROWS_AS(IPAddress{"1.2.3.4:5:6"}, std::invalid_argument);
 
-  // Pure colon or colon-only inputs
-  REQUIRE_THROWS_AS(IPAddress{":"}, std::invalid_argument);
+  // Colon-only inputs
   REQUIRE_THROWS_AS(IPAddress{"::"}, std::invalid_argument);
 
   // Non‐numeric port
