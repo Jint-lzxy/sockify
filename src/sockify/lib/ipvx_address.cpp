@@ -40,25 +40,39 @@ struct SOCKIFY_HIDDEN AddrInfoDeleter {
 using AddrInfo = std::unique_ptr<addrinfo, AddrInfoDeleter>;
 
 // Parse "[v6]:port", "host:port" or just "host"
-// -> (host, port[optional]).
+// -> { host, optional<port> }
 SOCKIFY_HIDDEN std::pair<std::string_view, std::optional<std::string_view>> parse_host_port(std::string_view addr)
 {
   if (addr.empty())
     return {addr, std::nullopt};
 
   if (addr.front() == '[') {
-    // [v6]:port
-    auto back = addr.find(']');
-    if (back != std::string_view::npos && back + 1 < addr.size() && addr[back + 1] == ':')
-      return {addr.substr(1, back - 1), std::make_optional(addr.substr(back + 2))};
+    // Expect either "[v6]" or "[v6]:port"
+    auto end = addr.find(']');
+    if (end == std::string_view::npos)
+      throw std::invalid_argument("Invalid IPv6 literal: missing ']'");
+
+    // Strip brackets
+    auto host = addr.substr(1, end - 1);
+
+    // Exactly "[v6]"
+    if (end + 1 == addr.size())
+      return {host, std::nullopt};
+    // "[v6]:port"
+    if (addr[end + 1] == ':')
+      return {host, addr.substr(end + 2)};
+
+    // junk after ']', e.g. "[::1]80"
+    throw std::invalid_argument("invalid IPv6 literal: unexpected characters after ']'");
   }
+
   // look for last ':', but only if there's no ']' afterwards
   auto pos = addr.rfind(':');
   if (pos != std::string_view::npos && addr.find(']', pos) == std::string_view::npos)
-    return {addr.substr(0, pos), std::make_optional(addr.substr(pos + 1))};
+    return {addr.substr(0, pos), addr.substr(pos + 1)};
 
-  // no port found
-  return {addr, std::nullopt};
+  // no port
+  return {addr, {}};
 }
 
 // Wrap getaddrinfo; throws system_error on failure.
