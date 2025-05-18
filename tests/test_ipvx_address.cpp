@@ -1,11 +1,25 @@
 #include "ipvx_address.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstring>
 #include <netinet/in.h>
 #include <stdexcept>
 #include <string>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 using namespace sockify;
+
+TEST_CASE("Construct from non-AF_INET* value_type resets to empty", "[ipaddress][value_type]")
+{
+  IPAddress::value_type raw_addr{};
+  std::memset(&raw_addr, 0, sizeof(raw_addr));
+  auto& un      = reinterpret_cast<sockaddr_un&>(raw_addr);
+  un.sun_family = AF_UNIX;
+
+  IPAddress addr{raw_addr};
+  CHECK_FALSE(addr.has_value());
+}
 
 TEST_CASE("IPv4 parsing and properties", "[ipaddress][ipv4]")
 {
@@ -65,10 +79,11 @@ TEST_CASE("IPv6 parsing and properties", "[ipaddress][ipv6]")
     REQUIRE_THROWS_AS(IPAddress{"::1"}, std::invalid_argument);
   }
 
-  SECTION("Malformed bracketed IPv6 inputs")
+  SECTION("Malformed bracketed inputs")
   {
-    REQUIRE_THROWS_AS(IPAddress{"[::1:80"}, std::invalid_argument); // missing ']'
-    REQUIRE_THROWS_AS(IPAddress{"[::1]80"}, std::invalid_argument); // missing ':'
+    REQUIRE_THROWS_AS(IPAddress{"127.0.0.1:80]"}, std::invalid_argument); // extra ']'
+    REQUIRE_THROWS_AS(IPAddress{"[::1:80"}, std::invalid_argument);       // missing ']'
+    REQUIRE_THROWS_AS(IPAddress{"[::1]80"}, std::invalid_argument);       // missing ':'
   }
 }
 
@@ -122,43 +137,69 @@ TEST_CASE("to_string() always includes port", "[ipaddress][to_string]")
 
 TEST_CASE("Edge cases for host/port parsing", "[ipaddress][parse]")
 {
-  // Leading/trailing whitespace should be considered part of host and fail
-  REQUIRE_THROWS_AS(IPAddress{" 127.0.0.1:80"}, std::invalid_argument);
-  REQUIRE_THROWS_AS(IPAddress{"127.0.0.1:80 "}, std::invalid_argument);
+  SECTION("Whitespace handling")
+  {
+    REQUIRE_THROWS_AS(IPAddress{" 127.0.0.1:80"}, std::invalid_argument);
+    REQUIRE_THROWS_AS(IPAddress{"127.0.0.1:80 "}, std::invalid_argument);
+  }
 
-  // Extra colons in unbracketed IPv4
-  REQUIRE_THROWS_AS(IPAddress{"1.2.3.4:5:6"}, std::invalid_argument);
+  SECTION("Invalid formatting")
+  {
+    // Extra colons in unbracketed IPv4
+    REQUIRE_THROWS_AS(IPAddress{"1.2.3.4:5:6"}, std::invalid_argument);
 
-  // Colon-only inputs
-  REQUIRE_THROWS_AS(IPAddress{"::"}, std::invalid_argument);
+    // Colon-only inputs
+    REQUIRE_THROWS_AS(IPAddress{"::"}, std::invalid_argument);
+  }
 
-  // Non‐numeric port
-  REQUIRE_NOTHROW(IPAddress{"127.0.0.1:http"});
-  REQUIRE_NOTHROW(IPAddress{"[::1]:https"});
+  SECTION("Port parsing")
+  {
+    SECTION("Non-numeric port does not throw")
+    {
+      REQUIRE_NOTHROW(IPAddress{"127.0.0.1:http"});
+      REQUIRE_NOTHROW(IPAddress{"[::1]:https"});
+    }
 
-  // Port out of valid range
-  REQUIRE_THROWS_AS(IPAddress{"127.0.0.1:70000"}, std::invalid_argument);
-  REQUIRE_THROWS_AS(IPAddress{"[::1]:65536"}, std::invalid_argument);
+    SECTION("Port out of valid range throws")
+    {
+      REQUIRE_THROWS_AS(IPAddress{"127.0.0.1:70000"}, std::invalid_argument);
+      REQUIRE_THROWS_AS(IPAddress{"[::1]:65536"}, std::invalid_argument);
+    }
+  }
 
-  // Invalid IP literals
-  REQUIRE_THROWS_AS(IPAddress{"256.256.256.256:80"}, std::invalid_argument);
-  REQUIRE_THROWS_AS(IPAddress{"1234::abcd::1:80"}, std::invalid_argument);
+  SECTION("Invalid IP addresses")
+  {
+    REQUIRE_THROWS_AS(IPAddress{"256.256.256.256:80"}, std::invalid_argument);
+    REQUIRE_THROWS_AS(IPAddress{"1234::abcd::1:80"}, std::invalid_argument);
+  }
 
-  // Illegal host chars
-  REQUIRE_THROWS_AS(IPAddress{"täst .local:80"}, std::invalid_argument);
-  REQUIRE_THROWS_AS(IPAddress{"exa mple.com:80"}, std::invalid_argument);
+  SECTION("Illegal characters in hostname")
+  {
+    REQUIRE_THROWS_AS(IPAddress{"täst .local:80"}, std::invalid_argument);
+    REQUIRE_THROWS_AS(IPAddress{"exa mple.com:80"}, std::invalid_argument);
+  }
 
-  // IPv4‐mapped IPv6 (should work)
+  SECTION("Valid IPv4-mapped IPv6 address")
   {
     IPAddress addr{"[::ffff:192.168.0.1]:8080"};
     REQUIRE(addr.ip() == "[::ffff:192.168.0.1]");
     REQUIRE(addr.port() == 8080);
   }
 
-  // Empty‐host + port -> binds wildcard
+  SECTION("Empty host scenarios")
   {
-    IPAddress addr{":1234"};
-    REQUIRE(addr.port() == 1234);
-    REQUIRE_FALSE(addr.ip().empty());
+    SECTION("Empty host + port binds wildcard")
+    {
+      IPAddress addr{":1234"};
+      REQUIRE(addr.port() == 1234);
+      REQUIRE_FALSE(addr.ip().empty());
+    }
+
+    SECTION("Empty address string binds wildcard with port 0")
+    {
+      IPAddress addr{""};
+      REQUIRE(addr.port() == 0);
+      REQUIRE_FALSE(addr.ip().empty());
+    }
   }
 }
