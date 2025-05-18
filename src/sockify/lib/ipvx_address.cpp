@@ -10,8 +10,11 @@
 #include "address.hpp"
 #include "config.hpp"
 
+#include <algorithm>
 #include <arpa/inet.h>
 #include <cassert>
+#include <cctype>
+#include <charconv>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -24,6 +27,7 @@
 #include <string>
 #include <string_view>
 #include <sys/socket.h>
+#include <system_error>
 #include <utility>
 
 // Anonymous namespace for helpers, should not be exported
@@ -63,7 +67,7 @@ SOCKIFY_HIDDEN std::pair<std::string_view, std::optional<std::string_view>> pars
       return {host, addr.substr(end + 2)};
 
     // junk after ']', e.g. "[::1]80"
-    throw std::invalid_argument("invalid IPv6 literal: unexpected characters after ']'");
+    throw std::invalid_argument("Invalid IPv6 literal: unexpected characters after ']'");
   }
 
   // look for last ':', but only if there's no ']' afterwards
@@ -147,12 +151,20 @@ IPAddress::IPAddress(const_reference address) noexcept : Address{address}
 IPAddress::IPAddress(std::string_view ip_address)
     : IPAddress([&ip_address] {
         auto [host, port] = parse_host_port(ip_address);
-        auto info         = resolve_addr(std::string{host}, std::string{port.value_or("0")});
+        if (port.has_value() && std::all_of(port->begin(), port->end(), ::isdigit)) {
+          // `val` is long to safely hold port numbers during parsing with std::from_chars.
+          long val = 0;
+          if (auto [_, ec] = std::from_chars(port->data(), port->data() + port->size(), val);
+              ec != std::errc{} || val < 0 || val > 65535)
+            throw std::invalid_argument("Invalid port: port must be 0-65535");
+        }
+
+        auto info = resolve_addr(std::string{host}, std::string{port.value_or("0")});
         return first_sockaddr(std::move(info));
       }())
 {}
 
-IPAddress::IPAddress(std::string_view ip_address, uint16_t port)
+IPAddress::IPAddress(std::string_view ip_address, std::uint16_t port)
     : IPAddress([&ip_address, &port] {
         auto info = resolve_addr(std::string{ip_address}, std::to_string(port));
         return first_sockaddr(std::move(info));
