@@ -18,8 +18,8 @@
 #include "config.hpp"
 
 #include <cstdint>
-#include <netdb.h>
 #include <string_view>
+#include <sys/socket.h>
 
 namespace sockify {
 
@@ -32,7 +32,7 @@ namespace sockify {
 ///
 /// \note Calling any accessor on an empty (default-constructed or reset)
 ///       IPAddress results in undefined behavior.
-class IPAddress final : public Address {
+class SOCKIFY_EXPORT IPAddress final : public Address {
 public:
   /// Constructs an empty IPAddress object with an unspecified family.
   /// \post The object is in a valid but unspecified state.
